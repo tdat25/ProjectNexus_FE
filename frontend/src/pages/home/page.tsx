@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link } from "react-router-dom";
 import { getProducts, getCategories } from "@shared/api/catalog";
 import { getAuctions } from "@shared/api/auction";
-import { addToCart } from "@shared/api/commerce";
+import { addToCart, getCart } from "@shared/api/commerce";
 import { useAuth } from "@app/providers/AuthContext";
 import { useCart } from "@app/providers/CartContext";
 import ProductCard from "@shared/ui/ProductCard";
@@ -22,6 +22,7 @@ import {
   ArrowUpDown,
   Search,
   Sparkles,
+  ShoppingCart,
 } from "lucide-react";
 
 // Category emoji icons
@@ -40,9 +41,21 @@ const POPULAR_KEYWORDS = ["Laptop", "Điện thoại", "Tai nghe", "Bàn phím",
 
 export default function HomePage() {
   const { isLoggedIn } = useAuth();
-  const { addToGuestCart } = useCart();
+  const { addToGuestCart, guestCartCount } = useCart();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Query giỏ hàng backend cho logged in user
+  const { data: backendCart } = useQuery({
+    queryKey: ["cart"],
+    queryFn: getCart,
+    enabled: isLoggedIn,
+    staleTime: 5000,
+  });
+
+  const totalCartCount = isLoggedIn
+    ? (backendCart?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0)
+    : guestCartCount;
 
   const urlSearch = searchParams.get("search") ?? "";
   const urlCat = searchParams.get("cat") ?? "";
@@ -108,8 +121,20 @@ export default function HomePage() {
           price: product.price,
           quantity: 1,
           imageUrl: product.imageUrl,
+          stockQuantity: product.stockQuantity,
         });
-        toast.success("Đã thêm vào giỏ! Đăng nhập để đặt hàng.", { icon: "🛒" });
+        toast((t) => (
+          <div className="flex items-center justify-between gap-3 min-w-[240px]">
+            <span className="text-sm font-semibold text-slate-800">Đã thêm vào giỏ hàng!</span>
+            <Link
+              to="/cart"
+              onClick={() => toast.dismiss(t.id)}
+              className="text-xs font-bold bg-nexus-600 hover:bg-nexus-700 text-white px-3 py-1.5 rounded-lg transition shrink-0 shadow-sm"
+            >
+              Xem giỏ hàng →
+            </Link>
+          </div>
+        ), { icon: "🛒", duration: 4000 });
       }
       return;
     }
@@ -120,9 +145,21 @@ export default function HomePage() {
         unitPrice: product?.price ?? 0,
         quantity: 1,
         imageUrl: product?.imageUrl,
+        stockQuantity: product?.stockQuantity,
       });
       queryClient.invalidateQueries({ queryKey: ["cart"] });
-      toast.success("Đã thêm vào giỏ hàng!");
+      toast((t) => (
+        <div className="flex items-center justify-between gap-3 min-w-[240px]">
+          <span className="text-sm font-semibold text-slate-800">Đã thêm vào giỏ hàng!</span>
+          <Link
+            to="/cart"
+            onClick={() => toast.dismiss(t.id)}
+            className="text-xs font-bold bg-nexus-600 hover:bg-nexus-700 text-white px-3 py-1.5 rounded-lg transition shrink-0 shadow-sm"
+          >
+            Xem giỏ hàng →
+          </Link>
+        </div>
+      ), { icon: "🛒", duration: 4000 });
     } catch {
       toast.error("Không thể thêm vào giỏ, hãy thử lại");
     }
@@ -564,6 +601,26 @@ export default function HomePage() {
           )}
         </div>
       </div>
+
+      {/* Floating Action Button: Nút xem giỏ hàng nhanh */}
+      <Link
+        to="/cart"
+        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-nexus-600 to-nexus-700 hover:from-nexus-700 hover:to-nexus-800 text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl hover:shadow-nexus-500/50 flex items-center gap-2.5 transition-all transform hover:scale-105 group border-2 border-white/20"
+        title="Xem giỏ hàng của bạn"
+        id="home-floating-cart-btn"
+      >
+        <div className="relative">
+          <ShoppingCart size={22} className="group-hover:rotate-6 transition-transform" />
+          {totalCartCount > 0 && (
+            <span className="absolute -top-2.5 -right-2.5 bg-red-500 text-white text-xs font-black rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 border-2 border-white shadow animate-pulse">
+              {totalCartCount > 99 ? "99+" : totalCartCount}
+            </span>
+          )}
+        </div>
+        <span className="hidden sm:inline font-bold text-sm tracking-wide">
+          Xem giỏ hàng {totalCartCount > 0 && `(${totalCartCount})`}
+        </span>
+      </Link>
     </div>
   );
 }
