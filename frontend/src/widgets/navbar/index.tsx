@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@app/providers/AuthContext";
 import { useCart } from "@app/providers/CartContext";
-import { ShoppingCart, LogOut, Package, Gavel, Settings, Search, Home } from "lucide-react";
+import { ShoppingCart, LogOut, Package, Gavel, Settings, Search, Home, Store, User, ChevronDown } from "lucide-react";
 import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getCart } from "@shared/api/commerce";
@@ -13,6 +13,7 @@ export default function Navbar() {
   const { guestCartCount } = useCart();
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState("");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { data: backendCart } = useQuery({
@@ -72,6 +73,7 @@ export default function Navbar() {
         </form>
 
         {/* Actions */}
+        {/* Actions */}
         <div className="flex items-center gap-4 text-white shrink-0">
           {/* Giỏ hàng */}
           {(!isLoggedIn || user?.role !== "SELLER") && (
@@ -91,21 +93,111 @@ export default function Navbar() {
           {isLoggedIn ? (
             <>
               <NotificationBell />
-              {(user?.role === "ADMIN" || user?.role === "SELLER") && (
-                <Link to="/admin" className="flex flex-col items-center gap-0.5 hover:text-nexus-200 transition-colors">
-                  <Settings size={22} />
-                  <span className="text-[10px] hidden sm:block">Quản lý</span>
+
+              {/* Kênh người bán cho Seller */}
+              {user?.role === "SELLER" && (
+                <Link to="/seller/dashboard" className="flex flex-col items-center gap-0.5 hover:text-nexus-200 transition-colors" title="Kênh người bán">
+                  <Store size={22} />
+                  <span className="text-[10px] hidden sm:block">Kênh bán</span>
                 </Link>
               )}
-              {/* User info + logout */}
-              <div className="flex items-center gap-2 pl-3 border-l border-nexus-500">
-                <div className="hidden md:block text-right">
-                  <p className="text-xs font-semibold leading-none">{user?.displayName}</p>
-                  <p className="text-[10px] text-nexus-200 mt-0.5">{user?.role}</p>
-                </div>
-                <button onClick={handleLogout} className="hover:text-red-300 transition-colors" title="Đăng xuất">
-                  <LogOut size={18} />
+
+              {/* Quản trị cho Admin */}
+              {user?.role === "ADMIN" && (
+                <Link to="/admin" className="flex flex-col items-center gap-0.5 hover:text-nexus-200 transition-colors" title="Trang quản trị">
+                  <Settings size={22} />
+                  <span className="text-[10px] hidden sm:block">Quản trị</span>
+                </Link>
+              )}
+
+              {/* User dropdown & info */}
+              <div className="relative pl-3 border-l border-nexus-500">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 hover:opacity-90 transition text-left"
+                >
+                  <div className="w-8 h-8 rounded-full bg-nexus-500 border border-nexus-400 flex items-center justify-center text-xs font-bold text-white shadow-inner">
+                    {user?.displayName ? user.displayName.charAt(0).toUpperCase() : <User size={16} />}
+                  </div>
+                  <div className="hidden md:block">
+                    <p className="text-xs font-semibold leading-tight line-clamp-1 max-w-[100px]">{user?.displayName}</p>
+                    <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.2 rounded bg-nexus-800 text-nexus-200 uppercase">
+                      {user?.role || "BUYER"}
+                    </span>
+                  </div>
+                  <ChevronDown size={14} className="text-nexus-200" />
                 </button>
+
+                {/* Dropdown Menu */}
+                {userMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-56 bg-white text-gray-800 rounded-2xl shadow-xl border border-gray-100 py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
+                        <p className="font-bold text-gray-900 text-sm">{user?.displayName}</p>
+                        <p className="text-gray-400 text-[11px] truncate">{user?.email}</p>
+                      </div>
+
+                      <div className="py-1">
+                        <Link
+                          to="/profile"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 hover:bg-nexus-50 hover:text-nexus-600 transition"
+                        >
+                          <User size={15} /> Hồ sơ cá nhân
+                        </Link>
+
+                        <Link
+                          to="/orders"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 hover:bg-nexus-50 hover:text-nexus-600 transition"
+                        >
+                          <Package size={15} /> Đơn mua của tôi
+                        </Link>
+
+                        {user?.role === "SELLER" ? (
+                          <Link
+                            to="/seller/dashboard"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-4 py-2 hover:bg-nexus-50 hover:text-nexus-600 transition"
+                          >
+                            <Store size={15} /> Kênh người bán
+                          </Link>
+                        ) : user?.role !== "ADMIN" ? (
+                          <Link
+                            to="/seller/register"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-4 py-2 text-amber-600 hover:bg-amber-50 transition font-semibold"
+                          >
+                            <Store size={15} /> Đăng ký mở Shop
+                          </Link>
+                        ) : null}
+
+                        {user?.role === "ADMIN" && (
+                          <Link
+                            to="/admin"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-4 py-2 hover:bg-nexus-50 hover:text-nexus-600 transition"
+                          >
+                            <Settings size={15} /> Trang quản trị
+                          </Link>
+                        )}
+                      </div>
+
+                      <div className="border-t border-gray-100 pt-1 mt-1">
+                        <button
+                          onClick={() => {
+                            setUserMenuOpen(false);
+                            handleLogout();
+                          }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2 text-red-600 hover:bg-red-50 transition font-medium"
+                        >
+                          <LogOut size={15} /> Đăng xuất
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </>
           ) : (

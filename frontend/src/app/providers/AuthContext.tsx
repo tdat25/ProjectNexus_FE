@@ -20,6 +20,7 @@ interface AuthContextType {
   isLoggedIn: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (patch: Partial<User>) => void;
 }
 
 // Context mặc định trống - sẽ được fill bởi Provider
@@ -55,6 +56,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("nexus_user", JSON.stringify(userData));
   };
 
+  // Cập nhật thông tin user (profile, role...)
+  const updateUser = (patch: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...patch };
+      localStorage.setItem("nexus_user", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Đăng xuất: xóa state và localStorage
   const logout = () => {
     setUser(null);
@@ -65,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isLoggedIn: !!user, login, logout }}
+      value={{ user, token, isLoggedIn: !!user, login, logout, updateUser }}
     >
       {children}
     </AuthContext.Provider>

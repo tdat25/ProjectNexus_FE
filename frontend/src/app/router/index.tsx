@@ -15,7 +15,10 @@ import AuctionDetailPage from "@pages/auctions/auction-detail.page";
 import NotificationsPage from "@pages/notifications/notifications.page";
 import AdminPage from "@pages/admin/admin.page";
 import SellerDashboard from "@pages/seller/seller-dashboard.page";
+import SellerRegisterPage from "@pages/seller/seller-register.page";
 import VerifyEmailPage from "@pages/verify-email/verify-email.page";
+
+import ProfilePage from "@pages/profile/profile.page";
 
 export default function AppRouter() {
   return (
@@ -38,10 +41,12 @@ export default function AppRouter() {
                 <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
                 <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
                 <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                 <Route path="/payment" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-                <Route path="/seller/dashboard" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
-                <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+                <Route path="/seller/register" element={<ProtectedRoute><SellerRegisterPage /></ProtectedRoute>} />
+                <Route path="/seller/dashboard" element={<ProtectedRoute allowedRoles={["SELLER", "ADMIN"]}><SellerDashboard /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute requiredRole="ADMIN"><AdminPage /></ProtectedRoute>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>

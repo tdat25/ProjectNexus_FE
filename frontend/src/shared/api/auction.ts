@@ -34,6 +34,8 @@ export interface PlaceBidResult {
   newEndTime: string;
 }
 
+import { MOCK_AUCTIONS } from "@shared/mock/mockData";
+
 // Lấy danh sách đấu giá, lọc theo trạng thái
 export const getAuctions = (params?: {
   page?: number;
@@ -45,7 +47,13 @@ export const getAuctions = (params?: {
       "/api/v1/auctions",
       { params }
     )
-    .then((r) => r.data);
+    .then((r) => r.data)
+    .catch(() => ({
+      items: MOCK_AUCTIONS,
+      total: MOCK_AUCTIONS.length,
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 12,
+    }));
 
 // Xem chi tiết cuộc đấu giá
 export const getAuction = (id: string) =>

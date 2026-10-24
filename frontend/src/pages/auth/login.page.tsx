@@ -46,6 +46,9 @@ export default function LoginPage() {
 
   // Trang sẽ redirect sau khi đăng nhập (mặc định về /)
   const redirectTo = (location.state as any)?.from ?? "/";
+  const forwardState = (location.state as any)?.selectedItems
+    ? { selectedItems: (location.state as any).selectedItems }
+    : undefined;
 
   const handleGoogleLogin = () => {
     // Chưa có code BE nên không thực hiện gì
@@ -81,7 +84,7 @@ export default function LoginPage() {
       await mergeGuestCartToBackend().catch(() => {});
 
       toast.success("Đăng nhập thành công!");
-      navigate(redirectTo, { replace: true });
+      navigate(redirectTo, { replace: true, state: forwardState });
     } catch (err: any) {
       const status = err?.response?.status;
       const msg = err?.response?.data?.message ?? "Tài khoản hoặc mật khẩu không chính xác.";

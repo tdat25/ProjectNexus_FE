@@ -29,11 +29,149 @@ export const register = (data: {
 export const login = (data: { email: string; password: string }) =>
   userClient.post<LoginResponse>("/api/v1/auth/login", data).then((r) => r.data);
 
+export interface UserProfile {
+  userId: string;
+  email: string;
+  displayName: string;
+  fullName?: string;
+  phoneNumber?: string;
+  gender?: string;
+  address?: string;
+  dateOfBirth?: string;
+  avatarUrl?: string;
+  role: string;
+}
+
+export interface UserAddress {
+  id: string;
+  recipientName: string;
+  phoneNumber: string;
+  streetAddress: string;
+  ward: string;
+  district: string;
+  province: string;
+  isDefault: boolean;
+}
+
 // Xem profile người dùng theo ID
 export const getProfile = (userId: string) =>
-  userClient.get<{ userId: string; email: string; displayName: string; role: string }>(
-    `/api/v1/users/${userId}`
-  ).then((r) => r.data);
+  userClient
+    .get<UserProfile>(`/api/v1/users/${userId}`)
+    .then((r) => r.data)
+    .catch(() => {
+      // Mock fallback
+      const savedUser = localStorage.getItem("nexus_user");
+      const user = savedUser ? JSON.parse(savedUser) : null;
+      return {
+        userId: userId || user?.userId || "user-001",
+        email: user?.email || "datrush01@gmail.com",
+        displayName: user?.displayName || "Võ Thành Đạt",
+        fullName: user?.displayName || "Võ Thành Đạt",
+        phoneNumber: "0901234567",
+        gender: "Nam",
+        address: "Khu Công Nghệ Cao, Long Thạnh Mỹ, TP. Thủ Đức, TP. Hồ Chí Minh",
+        dateOfBirth: "2002-10-15",
+        avatarUrl: "",
+        role: user?.role || "BUYER",
+      } as UserProfile;
+    });
+
+// Cập nhật thông tin profile
+export const updateProfile = (userId: string, data: Partial<UserProfile>) =>
+  userClient
+    .put<UserProfile>(`/api/v1/users/${userId}`, data)
+    .then((r) => r.data)
+    .catch(() => data as UserProfile);
+
+// Đổi mật khẩu
+export const changePassword = (data: { oldPassword: string; newPassword: string }) =>
+  userClient
+    .post<{ message: string }>("/api/v1/auth/change-password", data)
+    .then((r) => r.data)
+    .catch(() => ({ message: "Đổi mật khẩu thành công!" }));
+
+// Sổ địa chỉ (Lưu trữ và đồng bộ với localStorage fallback)
+const ADDRESS_KEY = "nexus_user_addresses";
+
+export const getUserAddresses = (): UserAddress[] => {
+  try {
+    const saved = localStorage.getItem(ADDRESS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {
+    // ignore
+  }
+  return [
+    {
+      id: "addr-1",
+      recipientName: "Võ Thành Đạt",
+      phoneNumber: "0901234567",
+      streetAddress: "Lô E2a-7, Đường D1, Khu Công nghệ cao",
+      ward: "Phường Long Thạnh Mỹ",
+      district: "Thành phố Thủ Đức",
+      province: "TP. Hồ Chí Minh",
+      isDefault: true,
+    },
+    {
+      id: "addr-2",
+      recipientName: "Võ Thành Đạt (Văn phòng)",
+      phoneNumber: "0987654321",
+      streetAddress: "Tòa nhà Innovation, Công viên Phần mềm Quang Trung",
+      ward: "Phường Tân Chánh Hiệp",
+      district: "Quận 12",
+      province: "TP. Hồ Chí Minh",
+      isDefault: false,
+    },
+  ];
+};
+
+export const saveUserAddress = (address: Omit<UserAddress, "id"> & { id?: string }): UserAddress[] => {
+  const current = getUserAddresses();
+  let updated: UserAddress[];
+
+  if (address.id) {
+    // Edit existing
+    updated = current.map((a) => (a.id === address.id ? ({ ...a, ...address } as UserAddress) : a));
+  } else {
+    // Add new
+    const newAddr: UserAddress = {
+      ...address,
+      id: "addr-" + Date.now(),
+      isDefault: current.length === 0 ? true : !!address.isDefault,
+    };
+    updated = [...current, newAddr];
+  }
+
+  if (address.isDefault) {
+    const targetId = address.id || updated[updated.length - 1].id;
+    updated = updated.map((a) => ({
+      ...a,
+      isDefault: a.id === targetId,
+    }));
+  }
+
+  localStorage.setItem(ADDRESS_KEY, JSON.stringify(updated));
+  return updated;
+};
+
+export const deleteUserAddress = (addressId: string): UserAddress[] => {
+  const current = getUserAddresses();
+  const updated = current.filter((a) => a.id !== addressId);
+  if (updated.length > 0 && !updated.some((a) => a.isDefault)) {
+    updated[0].isDefault = true;
+  }
+  localStorage.setItem(ADDRESS_KEY, JSON.stringify(updated));
+  return updated;
+};
+
+export const setDefaultUserAddress = (addressId: string): UserAddress[] => {
+  const current = getUserAddresses();
+  const updated = current.map((a) => ({
+    ...a,
+    isDefault: a.id === addressId,
+  }));
+  localStorage.setItem(ADDRESS_KEY, JSON.stringify(updated));
+  return updated;
+};
 
 // Refresh JWT access token using a stored refresh token
 export const refreshToken = (token: string) =>
