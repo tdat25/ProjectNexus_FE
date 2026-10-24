@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link } from "react-router-dom";
 import { getProducts, getCategories } from "@shared/api/catalog";
@@ -23,6 +23,8 @@ import {
   Search,
   Sparkles,
   ShoppingCart,
+  HelpCircle,
+  AlertCircle,
 } from "lucide-react";
 
 // Category emoji icons
@@ -57,6 +59,21 @@ export default function HomePage() {
     ? (backendCart?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0)
     : guestCartCount;
 
+  // Coordinated focal micro-interaction for cart acknowledgment
+  const [isCartBumping, setIsCartBumping] = useState(false);
+  const triggerCartBump = () => {
+    setIsCartBumping(true);
+    setTimeout(() => setIsCartBumping(false), 400);
+  };
+
+  const prevCountRef = useRef(totalCartCount);
+  useEffect(() => {
+    if (totalCartCount > prevCountRef.current) {
+      triggerCartBump();
+    }
+    prevCountRef.current = totalCartCount;
+  }, [totalCartCount]);
+
   const urlSearch = searchParams.get("search") ?? "";
   const urlCat = searchParams.get("cat") ?? "";
   const [page, setPage] = useState(1);
@@ -65,6 +82,7 @@ export default function HomePage() {
   // Lọc giá & sắp xếp (Client side filter & sort)
   const [sortBy, setSortBy] = useState<"default" | "price-asc" | "price-desc" | "name">("default");
   const [priceRange, setPriceRange] = useState<string>("all");
+  const [showAuctionGuide, setShowAuctionGuide] = useState(false);
 
   // Flash sale countdown timer
   const [flashSaleSeconds, setFlashSaleSeconds] = useState(3 * 3600 + 42 * 60 + 15);
@@ -123,6 +141,7 @@ export default function HomePage() {
           imageUrl: product.imageUrl,
           stockQuantity: product.stockQuantity,
         });
+        triggerCartBump();
         toast((t) => (
           <div className="flex items-center justify-between gap-3 min-w-[240px]">
             <span className="text-sm font-semibold text-slate-800">Đã thêm vào giỏ hàng!</span>
@@ -147,6 +166,7 @@ export default function HomePage() {
         imageUrl: product?.imageUrl,
         stockQuantity: product?.stockQuantity,
       });
+      triggerCartBump();
       queryClient.invalidateQueries({ queryKey: ["cart"] });
       toast((t) => (
         <div className="flex items-center justify-between gap-3 min-w-[240px]">
@@ -237,10 +257,10 @@ export default function HomePage() {
             {/* Trust badges */}
             <div className="grid grid-cols-2 gap-3 shrink-0">
               {[
-                { icon: <Truck size={18} />, label: "Giao hàng toàn quốc", sub: "Từ 30.000đ" },
-                { icon: <Shield size={18} />, label: "Bảo đảm chính hãng", sub: "100% authentic" },
-                { icon: <RotateCcw size={18} />, label: "Đổi trả 7 ngày", sub: "Không cần lý do" },
-                { icon: <Tag size={18} />, label: "Giá tốt nhất", sub: "So sánh 1000+ shop" },
+                { icon: <Truck size={18} />, label: "Giao hàng toàn quốc", sub: "Đơn hàng từ 30.000đ" },
+                { icon: <Shield size={18} />, label: "Bảo đảm chính hãng", sub: "Cam kết 100% authentic" },
+                { icon: <RotateCcw size={18} />, label: "Đổi trả trong 7 ngày", sub: "Miễn phí nếu lỗi từ shop" },
+                { icon: <Tag size={18} />, label: "Giá cả cạnh tranh", sub: "So sánh giá tốt nhất thị trường" },
               ].map((b) => (
                 <div
                   key={b.label}
@@ -263,9 +283,9 @@ export default function HomePage() {
         {!urlSearch && !urlCat && categories && categories.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-800 text-base">Danh mục nổi bật</h2>
-              <span className="text-xs text-nexus-600 font-semibold cursor-pointer hover:underline">
-                {categories.length} danh mục
+              <h2 className="font-bold text-gray-800 text-base">Danh mục sản phẩm nổi bật</h2>
+              <span className="text-xs text-gray-400 font-medium">
+                {categories.length} ngành hàng
               </span>
             </div>
             <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
@@ -292,11 +312,9 @@ export default function HomePage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
-                <h2 className="font-extrabold text-gray-900 text-lg flex items-center gap-2">
-                  <Flame size={22} className="text-red-500 fill-red-500 animate-bounce" />
-                  <span className="bg-gradient-to-r from-red-600 to-orange-500 bg-clip-text text-transparent">
-                    FLASH SALE
-                  </span>
+                <h2 className="font-black text-red-600 text-lg flex items-center gap-2 tracking-tight">
+                  <Flame size={22} className="text-red-600 fill-red-600" />
+                  <span>FLASH SALE</span>
                 </h2>
                 {/* Countdown Timer */}
                 <div className="flex items-center gap-1 text-xs font-mono font-bold">
@@ -304,7 +322,7 @@ export default function HomePage() {
                   <span className="text-gray-900">:</span>
                   <span className="bg-gray-900 text-white px-2 py-1 rounded-md">{fsMinutes}</span>
                   <span className="text-gray-900">:</span>
-                  <span className="bg-red-500 text-white px-2 py-1 rounded-md">{fsSecs}</span>
+                  <span key={fsSecs} className="bg-red-600 text-white px-2 py-1 rounded-md animate-second-tick inline-block">{fsSecs}</span>
                 </div>
               </div>
 
@@ -382,8 +400,8 @@ export default function HomePage() {
                 <div>
                   <h2 className="font-extrabold text-lg text-white flex items-center gap-2">
                     Sàn Đấu Giá Trực Tuyến Nổi Bật
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-500/80 text-white animate-pulse">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white"></span> LIVE
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-600 text-white shadow-sm">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse-subtle"></span> LIVE
                     </span>
                   </h2>
                   <p className="text-xs text-indigo-200">Đặt giá nhanh, sở hữu món đồ độc nhất với giá hời!</p>
@@ -397,6 +415,47 @@ export default function HomePage() {
               </Link>
             </div>
 
+            {/* Onboarding Guide: Hướng dẫn 3 bước cho người mới tham gia đấu giá */}
+            <div className="bg-white/10 backdrop-blur rounded-xl p-3.5 mb-5 border border-white/15 text-xs">
+              <div
+                className="flex items-center justify-between cursor-pointer select-none"
+                onClick={() => setShowAuctionGuide((v) => !v)}
+              >
+                <div className="flex items-center gap-2 text-amber-300 font-bold">
+                  <HelpCircle size={16} />
+                  <span>Người mới tham gia đấu giá? Xem nhanh 3 bước để thắng thầu</span>
+                </div>
+                <span className="text-[11px] text-indigo-200 hover:text-white underline font-medium">
+                  {showAuctionGuide ? "Thu gọn ▲" : "Xem hướng dẫn ▼"}
+                </span>
+              </div>
+              {showAuctionGuide && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 pt-3 border-t border-white/15 text-indigo-100">
+                  <div className="flex items-start gap-2.5 bg-black/20 p-2.5 rounded-lg border border-white/10">
+                    <span className="w-5 h-5 rounded-full bg-amber-400 text-gray-900 font-black text-xs flex items-center justify-center shrink-0">1</span>
+                    <div>
+                      <p className="font-semibold text-white">Chọn món & Đặt thầu</p>
+                      <p className="text-[11px] text-indigo-200 mt-0.5">Đặt mức giá cao hơn giá hiện tại theo bước giá quy định của phiên.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5 bg-black/20 p-2.5 rounded-lg border border-white/10">
+                    <span className="w-5 h-5 rounded-full bg-amber-400 text-gray-900 font-black text-xs flex items-center justify-center shrink-0">2</span>
+                    <div>
+                      <p className="font-semibold text-white">Theo dõi trực tiếp</p>
+                      <p className="text-[11px] text-indigo-200 mt-0.5">Hệ thống thông báo tức thì khi có người tham gia nâng mức giá thầu.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5 bg-black/20 p-2.5 rounded-lg border border-white/10">
+                    <span className="w-5 h-5 rounded-full bg-amber-400 text-gray-900 font-black text-xs flex items-center justify-center shrink-0">3</span>
+                    <div>
+                      <p className="font-semibold text-white">Thắng thầu & Nhận hàng</p>
+                      <p className="text-[11px] text-indigo-200 mt-0.5">Khi đồng hồ đếm về 0, người trả giá cao nhất sẽ thanh toán và nhận hàng an toàn.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {hotAuctions.items.slice(0, 4).map((auc) => (
                 <div
@@ -407,11 +466,11 @@ export default function HomePage() {
                     <div className="flex items-center justify-between text-xs text-indigo-200 mb-2">
                       <span className="font-mono">Mã #{auc.id.slice(0, 8)}</span>
                       <span className="text-amber-300 font-semibold flex items-center gap-1">
-                        <Clock size={12} /> Kết thúc sớm
+                        <Clock size={12} /> Sắp kết thúc
                       </span>
                     </div>
                     <p className="text-sm font-bold text-white line-clamp-1 mb-3 group-hover:text-amber-300 transition-colors">
-                      Phiên đấu giá #{auc.id.slice(0, 6)}
+                      Phiên đấu giá #{auc.id.slice(0, 6).toUpperCase()}
                     </p>
                     <div className="bg-black/30 rounded-lg p-2.5 mb-3 space-y-1">
                       <div className="text-[11px] text-gray-300">Giá hiện tại:</div>
@@ -420,7 +479,7 @@ export default function HomePage() {
                       </div>
                       <div className="text-[10px] text-indigo-200 flex justify-between">
                         <span>Khởi điểm: {fmtVND(auc.startingPrice)}</span>
-                        <span>{auc.totalBids} lượt bid</span>
+                        <span>{auc.totalBids} lượt đặt giá</span>
                       </div>
                     </div>
                   </div>
@@ -469,11 +528,11 @@ export default function HomePage() {
               {/* Lọc mức giá */}
               <div className="flex items-center gap-1.5 text-xs text-gray-600">
                 <SlidersHorizontal size={14} className="text-gray-400" />
-                <span className="font-medium">Giá:</span>
+                <span className="font-semibold text-gray-700">Khoảng giá:</span>
                 <select
                   value={priceRange}
                   onChange={(e) => setPriceRange(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white text-gray-700 outline-none focus:ring-1 focus:ring-nexus-500"
+                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white text-gray-700 outline-none focus:ring-1 focus:ring-nexus-500 font-medium cursor-pointer"
                 >
                   <option value="all">Tất cả mức giá</option>
                   <option value="under-1m">Dưới 1 triệu</option>
@@ -486,26 +545,26 @@ export default function HomePage() {
               {/* Sắp xếp */}
               <div className="flex items-center gap-1.5 text-xs text-gray-600">
                 <ArrowUpDown size={14} className="text-gray-400" />
-                <span className="font-medium">Sắp xếp:</span>
+                <span className="font-semibold text-gray-700">Sắp xếp theo:</span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white text-gray-700 outline-none focus:ring-1 focus:ring-nexus-500"
+                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white text-gray-700 outline-none focus:ring-1 focus:ring-nexus-500 font-medium cursor-pointer"
                 >
-                  <option value="default">Mặc định / Phổ biến</option>
-                  <option value="price-asc">Giá tăng dần</option>
-                  <option value="price-desc">Giá giảm dần</option>
-                  <option value="name">Tên A-Z</option>
+                  <option value="default">Phổ biến nhất</option>
+                  <option value="price-asc">Giá: Thấp đến cao</option>
+                  <option value="price-desc">Giá: Cao đến thấp</option>
+                  <option value="name">Tên sản phẩm: A - Z</option>
                 </select>
               </div>
 
-              {/* Nút Xóa lọc nếu có filter */}
+              {/* Nút Đặt lại bộ lọc */}
               {isFiltered && (
                 <button
                   onClick={resetAllFilters}
-                  className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded bg-red-50 transition"
+                  className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 transition flex items-center gap-1"
                 >
-                  ✕ Xóa lọc
+                  <span>✕</span> Đặt lại bộ lọc
                 </button>
               )}
             </div>
@@ -515,8 +574,20 @@ export default function HomePage() {
           {isLoading ? (
             <LoadingSpinner />
           ) : isError ? (
-            <div className="text-center py-16 text-red-500 text-sm">
-              Không thể tải sản phẩm. Vui lòng kiểm tra lại kết nối.
+            <div className="text-center py-16 px-4 max-w-sm mx-auto">
+              <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <AlertCircle size={24} />
+              </div>
+              <h3 className="font-bold text-gray-800 text-sm mb-1">Không thể tải danh sách sản phẩm</h3>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                Kết nối tới máy chủ bị gián đoạn. Vui lòng kiểm tra lại đường truyền và thử tải lại.
+              </p>
+              <button
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["products"] })}
+                className="px-4 py-2 bg-nexus-600 hover:bg-nexus-700 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95"
+              >
+                Thử tải lại dữ liệu
+              </button>
             </div>
           ) : processedProducts.length === 0 ? (
             /* ── CẢI TIẾN EMPTY STATE KHI KHÔNG TÌM THẤY KẾT QUẢ ─────────── */
@@ -602,17 +673,24 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Floating Action Button: Nút xem giỏ hàng nhanh */}
+      {/* Floating Action Button: Nút xem giỏ hàng nhanh với micro-interaction */}
       <Link
         to="/cart"
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-nexus-600 to-nexus-700 hover:from-nexus-700 hover:to-nexus-800 text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl hover:shadow-nexus-500/50 flex items-center gap-2.5 transition-all transform hover:scale-105 group border-2 border-white/20"
+        className={`fixed bottom-6 right-6 z-40 bg-nexus-600 hover:bg-nexus-700 text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-xl shadow-nexus-900/15 flex items-center gap-2.5 transition-all duration-200 active:scale-95 group border border-white/20 ${
+          isCartBumping ? "animate-cart-bump" : ""
+        }`}
         title="Xem giỏ hàng của bạn"
         id="home-floating-cart-btn"
       >
         <div className="relative">
-          <ShoppingCart size={22} className="group-hover:rotate-6 transition-transform" />
+          <ShoppingCart size={22} className="group-hover:rotate-6 transition-transform duration-200" />
           {totalCartCount > 0 && (
-            <span className="absolute -top-2.5 -right-2.5 bg-red-500 text-white text-xs font-black rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 border-2 border-white shadow animate-pulse">
+            <span
+              key={totalCartCount}
+              className={`absolute -top-2.5 -right-2.5 bg-red-600 text-white text-xs font-black rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 border-2 border-white shadow-sm ${
+                isCartBumping ? "animate-badge-pop" : ""
+              }`}
+            >
               {totalCartCount > 99 ? "99+" : totalCartCount}
             </span>
           )}

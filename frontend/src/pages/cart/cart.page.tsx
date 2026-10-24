@@ -337,24 +337,63 @@ export default function CartPage() {
 
         {/* Nội dung giỏ hàng */}
         {items.length === 0 ? (
-          /* Empty State */
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center shadow-sm max-w-2xl mx-auto my-8">
-            <div className="w-24 h-24 bg-nexus-50 text-nexus-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-              <ShoppingBag size={48} strokeWidth={1.5} />
+          /* Empty State Onboarding: Giúp người dùng khám phá và bắt đầu mua sắm */
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-8 sm:p-12 text-center shadow-sm max-w-3xl mx-auto my-6">
+            <div className="w-20 h-20 bg-nexus-50 text-nexus-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
+              <ShoppingBag size={40} strokeWidth={1.8} />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-800 mb-2">
               Giỏ hàng của bạn đang trống
             </h2>
-            <p className="text-slate-500 text-sm max-w-md mx-auto mb-8">
-              Chưa có sản phẩm nào được chọn. Hãy khám phá hàng ngàn công nghệ chính hãng, linh kiện điện tử và phiên đấu giá hấp dẫn trên Nexus!
+            <p className="text-slate-500 text-sm max-w-lg mx-auto mb-6 leading-relaxed">
+              Bạn chưa chọn món đồ nào. Giỏ hàng tại ProjectNexus giúp bạn lưu giữ các sản phẩm yêu thích, tự động tính ưu đãi Freeship và đồng bộ an toàn qua tài khoản.
             </p>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-nexus-600 hover:bg-nexus-700 text-white font-bold text-sm shadow-lg shadow-nexus-500/25 transition-all transform hover:-translate-y-0.5"
-            >
-              Khám phá sản phẩm ngay
-              <ArrowRight size={18} />
-            </Link>
+
+
+            {/* 3 Cam kết mua sắm an tâm */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl mx-auto mb-8 text-left">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 flex items-start gap-2.5">
+                <Truck className="text-nexus-600 shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Miễn phí vận chuyển</p>
+                  <p className="text-[11px] text-slate-500">Đơn hàng từ 300.000đ</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 flex items-start gap-2.5">
+                <RotateCcw className="text-nexus-600 shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Đổi trả 7 ngày</p>
+                  <p className="text-[11px] text-slate-500">Miễn phí nếu lỗi nhà bán</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 flex items-start gap-2.5">
+                <ShieldCheck className="text-nexus-600 shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Bảo đảm chính hãng</p>
+                  <p className="text-[11px] text-slate-500">Cam kết 100% authentic</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                to="/"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl bg-nexus-600 hover:bg-nexus-700 text-white font-bold text-sm shadow-md transition-all active:scale-95"
+              >
+                Khám phá sản phẩm ngay
+                <ArrowRight size={18} />
+              </Link>
+              {!isLoggedIn && (
+                <Link
+                  to="/login"
+                  state={{ from: "/cart" }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm transition"
+                >
+                  <LogIn size={16} />
+                  Đăng nhập để xem giỏ đã lưu
+                </Link>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

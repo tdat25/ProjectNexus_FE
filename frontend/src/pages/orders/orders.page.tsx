@@ -199,14 +199,38 @@ export default function OrdersPage() {
         {isLoading ? (
           <LoadingSpinner />
         ) : orders.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 text-center">
-            <Package size={40} className="mx-auto mb-3 text-gray-200" />
-            <p className="text-gray-400 text-sm">
-              {activeTab === "all" ? "Bạn chưa có đơn hàng nào" : "Không có đơn nào trong mục này"}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm py-16 px-6 text-center max-w-lg mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-nexus-50 text-nexus-600 flex items-center justify-center mx-auto mb-4">
+              <Package size={32} />
+            </div>
+            <h3 className="font-bold text-gray-800 text-base mb-1">
+              {activeTab === "all" ? "Bạn chưa có đơn hàng nào" : "Không tìm thấy đơn hàng phù hợp"}
+            </h3>
+            <p className="text-gray-500 text-xs mb-6 max-w-xs mx-auto leading-relaxed">
+              {activeTab === "all"
+                ? "Bắt đầu trải nghiệm mua sắm công nghệ chính hãng hoặc tham gia đấu giá để nhận mức giá ưu đãi nhất."
+                : "Thử chọn tab trạng thái khác hoặc xem danh sách tất cả đơn hàng đã đặt."}
             </p>
-            {activeTab !== "all" && (
-              <button onClick={() => setActiveTab("all")}
-                className="mt-2 text-xs text-nexus-600 hover:underline">
+            {activeTab === "all" ? (
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5">
+                <Link
+                  to="/"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-nexus-600 hover:bg-nexus-700 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95"
+                >
+                  Khám phá sản phẩm ngay
+                </Link>
+                <Link
+                  to="/auctions"
+                  className="w-full sm:w-auto px-5 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-semibold transition"
+                >
+                  Xem sàn đấu giá
+                </Link>
+              </div>
+            ) : (
+              <button
+                onClick={() => setActiveTab("all")}
+                className="px-4 py-2 bg-nexus-50 text-nexus-600 hover:bg-nexus-100 rounded-xl text-xs font-semibold transition"
+              >
                 Xem tất cả đơn hàng
               </button>
             )}
