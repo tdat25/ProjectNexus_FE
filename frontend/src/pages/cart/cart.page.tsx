@@ -46,6 +46,7 @@ interface UnifiedCartItem {
   subtotal: number;
   imageUrl?: string;
   stockQuantity: number;
+  pendingSync?: boolean;
 }
 
 export default function CartPage() {
@@ -57,6 +58,7 @@ export default function CartPage() {
     updateGuestCartQuantity,
     removeFromGuestCart,
     clearGuestCart,
+    mergeGuestCartToBackend,
   } = useCart();
 
   // State cho checkbox chọn sản phẩm thanh toán
@@ -68,37 +70,56 @@ export default function CartPage() {
   const {
     data: backendCart,
     isLoading: backendLoading,
+    isError: backendError,
+    refetch: refetchBackendCart,
   } = useQuery({
     queryKey: ["cart"],
     queryFn: getCart,
     enabled: isLoggedIn,
     staleTime: 5000,
+    retry: 1,
   });
 
   // ── Chuyển đổi sang UnifiedCartItem[] ────────────────────────────────────
   const items: UnifiedCartItem[] = useMemo(() => {
     if (isLoggedIn) {
-      if (!backendCart?.items) return [];
-      return backendCart.items.map((i) => ({
+      const serverItems: UnifiedCartItem[] = (backendCart?.items ?? []).map((i) => ({
         productId: i.productId,
         productName: i.productName,
         price: i.unitPrice,
         quantity: i.quantity,
-        subtotal: i.subtotal || i.unitPrice * i.quantity,
+        subtotal: i.subtotal ?? i.unitPrice * i.quantity,
         imageUrl: i.imageUrl,
-        stockQuantity: i.stockQuantity ?? 25,
+        stockQuantity: i.stockQuantity ?? 99,
       }));
-    } else {
-      return guestCart.map((i: GuestCartItem) => ({
-        productId: i.productId,
-        productName: i.productName,
-        price: i.price,
-        quantity: i.quantity,
-        subtotal: i.price * i.quantity,
-        imageUrl: i.imageUrl,
-        stockQuantity: i.stockQuantity ?? 25,
-      }));
+
+      // Giữ sản phẩm local chưa đồng bộ để không làm mất dữ liệu sau login.
+      const serverIds = new Set(serverItems.map((item) => item.productId));
+      const pendingItems: UnifiedCartItem[] = guestCart
+        .filter((item) => !serverIds.has(item.productId))
+        .map((item: GuestCartItem) => ({
+          productId: item.productId,
+          productName: item.productName,
+          price: item.price,
+          quantity: item.quantity,
+          subtotal: item.price * item.quantity,
+          imageUrl: item.imageUrl,
+          stockQuantity: item.stockQuantity ?? 99,
+          pendingSync: true,
+        }));
+
+      return [...serverItems, ...pendingItems];
     }
+
+    return guestCart.map((i: GuestCartItem) => ({
+      productId: i.productId,
+      productName: i.productName,
+      price: i.price,
+      quantity: i.quantity,
+      subtotal: i.price * i.quantity,
+      imageUrl: i.imageUrl,
+      stockQuantity: i.stockQuantity ?? 99,
+    }));
   }, [isLoggedIn, backendCart?.items, guestCart]);
 
   // Tự động chọn tất cả sản phẩm khi vừa tải danh sách lần đầu
@@ -154,28 +175,31 @@ export default function CartPage() {
       return;
     }
 
-    if (isLoggedIn) {
-      updateQuantityMutation.mutate({ productId, quantity: newQty });
-    } else {
+    const currentItem = items.find((item) => item.productId === productId);
+    if (!isLoggedIn || currentItem?.pendingSync) {
       updateGuestCartQuantity(productId, newQty);
+    } else {
+      updateQuantityMutation.mutate({ productId, quantity: newQty });
     }
   };
 
   const handleRemoveItem = (productId: string) => {
-    if (isLoggedIn) {
-      removeMutation.mutate(productId);
-    } else {
+    const currentItem = items.find((item) => item.productId === productId);
+    if (!isLoggedIn || currentItem?.pendingSync) {
       removeFromGuestCart(productId);
       toast.success("Đã xóa sản phẩm khỏi giỏ hàng");
+    } else {
+      removeMutation.mutate(productId);
     }
     setSelectedIds((prev) => prev.filter((id) => id !== productId));
   };
 
   const handleClearCart = () => {
+    // Xóa cả sản phẩm local chưa đồng bộ lẫn sản phẩm ở backend.
+    clearGuestCart();
     if (isLoggedIn) {
-      clearCartMutation.mutate();
+      clearCartMutation.mutate(undefined);
     } else {
-      clearGuestCart();
       toast.success("Đã làm trống giỏ hàng");
       setShowClearConfirm(false);
     }
@@ -184,10 +208,19 @@ export default function CartPage() {
 
   const handleRemoveSelected = () => {
     if (selectedIds.length === 0) return;
-    if (isLoggedIn) {
-      clearCartMutation.mutate(selectedIds);
+
+    const selectedPendingIds = items
+      .filter((item) => item.pendingSync && selectedIds.includes(item.productId))
+      .map((item) => item.productId);
+    const selectedServerIds = items
+      .filter((item) => !item.pendingSync && selectedIds.includes(item.productId))
+      .map((item) => item.productId);
+
+    selectedPendingIds.forEach((id) => removeFromGuestCart(id));
+
+    if (isLoggedIn && selectedServerIds.length > 0) {
+      clearCartMutation.mutate(selectedServerIds);
     } else {
-      selectedIds.forEach((id) => removeFromGuestCart(id));
       toast.success(`Đã xóa ${selectedIds.length} sản phẩm đã chọn`);
     }
     setSelectedIds([]);
@@ -229,38 +262,93 @@ export default function CartPage() {
   const isFreeShipEligible = selectedTotalAmount >= 300000;
 
   // ── Chuyển tiếp sang trang Checkout ──────────────────────────────────────
-  const handleProceedToCheckout = () => {
-    if (selectedItems.length === 0) {
+  const handleProceedToCheckout = async () => {
+    const selectedIdsAtClick = [...selectedIds];
+    const selectedAtClick = items.filter((item) =>
+      selectedIdsAtClick.includes(item.productId)
+    );
+
+    if (selectedAtClick.length === 0) {
       toast.error("Vui lòng chọn ít nhất 1 sản phẩm để thanh toán!");
       return;
     }
 
-    const payloadForCheckout: CartItem[] = selectedItems.map((i) => ({
-      productId: i.productId,
-      productName: i.productName,
-      unitPrice: i.price,
-      quantity: i.quantity,
-      subtotal: i.price * i.quantity,
-      imageUrl: i.imageUrl,
-      stockQuantity: i.stockQuantity,
-    }));
+    try {
+      let checkoutItems: CartItem[];
 
-    if (!isLoggedIn) {
-      // Nhắc nhở và chuyển sang login
-      toast("Vui lòng đăng nhập để tiến hành đặt hàng!", { icon: "🔒" });
-      navigate("/login", {
-        state: {
-          from: "/checkout",
-          selectedItems: payloadForCheckout,
-        },
+      if (!isLoggedIn) {
+        checkoutItems = selectedAtClick.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          unitPrice: item.price,
+          quantity: item.quantity,
+          subtotal: item.price * item.quantity,
+          imageUrl: item.imageUrl,
+          stockQuantity: item.stockQuantity,
+        }));
+
+        toast("Vui lòng đăng nhập để tiến hành đặt hàng!", { icon: "🔒" });
+        navigate("/login", {
+          state: {
+            from: "/checkout",
+            checkoutSource: "cart",
+            selectedItems: checkoutItems,
+          },
+        });
+        return;
+      }
+
+      // Đồng bộ trước khi checkout. Nếu còn item lỗi thì không chuyển trang.
+      const hasPendingSelected = selectedAtClick.some((item) => item.pendingSync);
+      if (hasPendingSelected) {
+        const syncResult = await mergeGuestCartToBackend();
+        if (syncResult.failedCount > 0) {
+          await queryClient.invalidateQueries({ queryKey: ["cart"] });
+          toast.error(
+            "Một số sản phẩm chưa đồng bộ được. Giỏ hàng được giữ lại để bạn thử lại.",
+            { duration: 6000 }
+          );
+          return;
+        }
+      }
+
+      // Lấy dữ liệu mới từ API sau khi đồng bộ, không dùng selectedItems cũ.
+      const refreshed = await refetchBackendCart();
+      const latestCart = refreshed.data;
+      if (!latestCart) {
+        toast.error("Không thể tải lại giỏ hàng mới nhất. Vui lòng thử lại.");
+        return;
+      }
+
+      const latestById = new Map(latestCart.items.map((item) => [item.productId, item]));
+      const missingIds = selectedIdsAtClick.filter((id) => !latestById.has(id));
+      if (missingIds.length > 0) {
+        toast.error(
+          "Một số sản phẩm đã chọn không còn trong giỏ hàng sau khi đồng bộ. Vui lòng kiểm tra lại giỏ hàng.",
+          { duration: 6000 }
+        );
+        await queryClient.invalidateQueries({ queryKey: ["cart"] });
+        return;
+      }
+
+      checkoutItems = selectedIdsAtClick.map((id) => {
+        const item = latestById.get(id)!;
+        return {
+          productId: item.productId,
+          productName: item.productName,
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+          subtotal: item.subtotal ?? item.unitPrice * item.quantity,
+          imageUrl: item.imageUrl,
+          stockQuantity: item.stockQuantity,
+        };
       });
-    } else {
-      // Đã đăng nhập: chuyển trực tiếp sang checkout với danh sách sản phẩm đã tick
+
       navigate("/checkout", {
-        state: {
-          selectedItems: payloadForCheckout,
-        },
+        state: { selectedItems: checkoutItems },
       });
+    } catch {
+      toast.error("Không thể chuẩn bị giỏ hàng thanh toán. Vui lòng thử lại.");
     }
   };
 
@@ -268,6 +356,27 @@ export default function CartPage() {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (isLoggedIn && backendError && guestCart.length === 0) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
+        <div className="max-w-md text-center bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+          <AlertCircle size={40} className="mx-auto text-amber-500 mb-3" />
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Không tải được giỏ hàng</h2>
+          <p className="text-sm text-slate-600 mb-5">
+            Không thể tải dữ liệu giỏ hàng. Vui lòng thử lại trước khi thanh toán.
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetchBackendCart()}
+            className="px-5 py-2.5 rounded-xl bg-nexus-600 text-white font-semibold hover:bg-nexus-700"
+          >
+            Thử lại
+          </button>
+        </div>
       </div>
     );
   }
@@ -495,9 +604,15 @@ export default function CartPage() {
                           </Link>
 
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                              Chính hãng 100%
-                            </span>
+                            {item.pendingSync ? (
+                              <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                Chưa đồng bộ máy chủ
+                              </span>
+                            ) : (
+                              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                                Chính hãng 100%
+                              </span>
+                            )}
                             <span className="text-xs text-slate-400">
                               Kho: {item.stockQuantity}
                             </span>

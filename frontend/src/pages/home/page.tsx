@@ -43,7 +43,7 @@ const POPULAR_KEYWORDS = ["Laptop", "Điện thoại", "Tai nghe", "Bàn phím",
 
 export default function HomePage() {
   const { isLoggedIn } = useAuth();
-  const { addToGuestCart, guestCartCount } = useCart();
+  const { addToGuestCart, guestCart, guestCartCount } = useCart();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -55,8 +55,14 @@ export default function HomePage() {
     staleTime: 5000,
   });
 
+  const backendCartItems = backendCart?.items ?? [];
+  const backendCartCount = backendCartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const backendProductIds = new Set(backendCartItems.map((item) => item.productId));
+  const pendingGuestCount = guestCart
+    .filter((item) => !backendProductIds.has(item.productId))
+    .reduce((sum, item) => sum + item.quantity, 0);
   const totalCartCount = isLoggedIn
-    ? (backendCart?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0)
+    ? backendCartCount + pendingGuestCount
     : guestCartCount;
 
   // Coordinated focal micro-interaction for cart acknowledgment

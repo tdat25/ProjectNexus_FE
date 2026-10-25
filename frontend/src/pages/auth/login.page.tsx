@@ -2,10 +2,12 @@
 // Trang đăng nhập Nexus — Thiết kế theo mockup Portal
 // ============================================================
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@app/providers/AuthContext";
 import { useCart } from "@app/providers/CartContext";
+import { getCart } from "@shared/api/commerce";
 import toast from "react-hot-toast";
 import { ShieldCheck, User, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 
@@ -34,6 +36,7 @@ const GoogleIcon = () => (
 export default function LoginPage() {
   const { login } = useAuth();
   const { mergeGuestCartToBackend } = useCart();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -47,7 +50,10 @@ export default function LoginPage() {
   // Trang sẽ redirect sau khi đăng nhập (mặc định về /)
   const redirectTo = (location.state as any)?.from ?? "/";
   const forwardState = (location.state as any)?.selectedItems
-    ? { selectedItems: (location.state as any).selectedItems }
+    ? {
+        selectedItems: (location.state as any).selectedItems,
+        checkoutSource: (location.state as any).checkoutSource,
+      }
     : undefined;
 
   const handleGoogleLogin = () => {
@@ -80,8 +86,57 @@ export default function LoginPage() {
     try {
       await login(account.trim(), password);
 
-      // Merge guest cart vào backend sau khi login (silent fail nếu lỗi)
-      await mergeGuestCartToBackend().catch(() => {});
+      // Đồng bộ guest cart sau khi login và làm mới dữ liệu hiển thị trên Navbar/Cart.
+      const syncResult = await mergeGuestCartToBackend().catch(() => ({
+        syncedCount: 0,
+        failedCount: 0,
+      }));
+      await queryClient.invalidateQueries({ queryKey: ["cart"] });
+
+      if (redirectTo === "/checkout" && forwardState?.selectedItems) {
+        if (syncResult.failedCount > 0) {
+          toast.error("Một số sản phẩm chưa đồng bộ được. Vui lòng kiểm tra lại giỏ hàng.");
+          navigate("/cart", { replace: true });
+          return;
+        }
+
+        // Dùng dữ liệu mới nhất cho checkout từ Cart; với Buy Now vẫn giữ số lượng người dùng yêu cầu.
+        const latestCart = await queryClient.fetchQuery({
+          queryKey: ["cart"],
+          queryFn: getCart,
+        });
+        const requestedItems = forwardState.selectedItems as Array<{
+          productId: string;
+          quantity: number;
+        }>;
+        const latestById = new Map(latestCart.items.map((item) => [item.productId, item]));
+        const missingSelected = requestedItems.some((item) => !latestById.has(item.productId));
+
+        if (missingSelected) {
+          toast.error("Không tìm thấy một số sản phẩm sau khi đồng bộ. Vui lòng kiểm tra giỏ hàng.");
+          navigate("/cart", { replace: true });
+          return;
+        }
+
+        const refreshedSelectedItems = requestedItems.map((requested) => {
+          const latest = latestById.get(requested.productId)!;
+          const quantity = (location.state as any)?.checkoutSource === "cart"
+            ? latest.quantity
+            : requested.quantity;
+          return {
+            ...latest,
+            quantity,
+            subtotal: latest.unitPrice * quantity,
+          };
+        });
+
+        toast.success("Đăng nhập thành công!");
+        navigate("/checkout", {
+          replace: true,
+          state: { selectedItems: refreshedSelectedItems },
+        });
+        return;
+      }
 
       toast.success("Đăng nhập thành công!");
       navigate(redirectTo, { replace: true, state: forwardState });

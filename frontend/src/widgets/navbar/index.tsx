@@ -10,7 +10,7 @@ import NotificationBell from "@widgets/notification-bell";
 
 export default function Navbar() {
   const { user, isLoggedIn, logout } = useAuth();
-  const { guestCartCount } = useCart();
+  const { guestCart, guestCartCount } = useCart();
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -29,8 +29,15 @@ export default function Navbar() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const backendCartCount = backendCart?.items.reduce((s, i) => s + i.quantity, 0) ?? 0;
-  const totalCartCount = isLoggedIn ? backendCartCount : guestCartCount;
+  const backendCartItems = backendCart?.items ?? [];
+  const backendCartCount = backendCartItems.reduce((s, i) => s + i.quantity, 0);
+  const backendProductIds = new Set(backendCartItems.map((item) => item.productId));
+  const pendingGuestCount = guestCart
+    .filter((item) => !backendProductIds.has(item.productId))
+    .reduce((sum, item) => sum + item.quantity, 0);
+  const totalCartCount = isLoggedIn
+    ? backendCartCount + pendingGuestCount
+    : guestCartCount;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
