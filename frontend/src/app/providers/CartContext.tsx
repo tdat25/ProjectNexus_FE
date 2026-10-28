@@ -22,6 +22,7 @@ interface CartContextType {
   guestCart: GuestCartItem[];
   guestCartCount: number;                                    // tổng số lượng sản phẩm
   addToGuestCart: (item: GuestCartItem) => void;             // thêm/cộng dồn vào guest cart
+  updateGuestCartQuantity: (productId: string, quantity: number) => void; // cập nhật số lượng
   removeFromGuestCart: (productId: string) => void;          // xóa khỏi guest cart
   clearGuestCart: () => void;                                // xóa toàn bộ
   mergeGuestCartToBackend: () => Promise<void>;              // dùng sau khi login
@@ -63,6 +64,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
               : i
           )
         : [...prev, item];
+      saveGuestCart(next);
+      return next;
+    });
+  }, []);
+
+  // Cập nhật số lượng item trong guest cart (nếu <= 0 thì xóa)
+  const updateGuestCartQuantity = useCallback((productId: string, quantity: number) => {
+    setGuestCart((prev) => {
+      if (quantity <= 0) {
+        const next = prev.filter((i) => i.productId !== productId);
+        saveGuestCart(next);
+        return next;
+      }
+      const next = prev.map((i) =>
+        i.productId === productId ? { ...i, quantity } : i
+      );
       saveGuestCart(next);
       return next;
     });
@@ -116,6 +133,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         guestCart,
         guestCartCount,
         addToGuestCart,
+        updateGuestCartQuantity,
         removeFromGuestCart,
         clearGuestCart,
         mergeGuestCartToBackend,

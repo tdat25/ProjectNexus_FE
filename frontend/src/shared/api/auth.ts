@@ -153,3 +153,9 @@ export const registerSeller = (data: { shopName: string; description: string }) 
 export const getMySellerProfile = () =>
   userClient.get<SellerProfile>("/api/v1/seller/profile").then((r) => r.data);
 
+export const getPendingSellers = () =>
+  userClient.get<SellerProfile[]>("/api/v1/seller/pending").then((r) => r.data);
+
+export const verifySeller = (sellerId: string) =>
+  userClient.post(`/api/v1/seller/${sellerId}/verify`).then((r) => r.data);
+

@@ -63,6 +63,9 @@ export const addToCart = (data: {
 export const removeFromCart = (productId: string) =>
   commerceClient.delete(`/api/v1/cart/items/${productId}`);
 
+export const updateCartItemQuantity = (productId: string, quantity: number) =>
+  commerceClient.put(`/api/v1/cart/items/${productId}`, { quantity });
+
 // ── Đặt hàng ─────────────────────────────────────────────────────────────────
 
 export const checkout = (data: CheckoutPayload) =>

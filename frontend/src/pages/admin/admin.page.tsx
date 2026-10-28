@@ -13,15 +13,16 @@ import {
 import type { Auction } from "@shared/api/auction";
 import {
   getUsers, getRoles, changeUserRole, toggleLockUser, deleteUser, DEFAULT_ROLES,
+  getPendingSellers, verifySeller,
 } from "@shared/api/auth";
-import type { RoleOption } from "@shared/api/auth";
+import type { RoleOption, SellerProfile } from "@shared/api/auth";
 import { useAuth } from "@app/providers/AuthContext";
 import LoadingSpinner from "@shared/ui/LoadingSpinner";
 import toast from "react-hot-toast";
 import {
   Trash2, Plus, Settings, Users, CheckCircle, XCircle,
   Shield, Check, RotateCcw, Lock, Unlock, Edit2, X,
-  Gavel, Eye, EyeOff, Clock, AlertTriangle, ChevronDown, ChevronUp,
+  Gavel, Eye, EyeOff, Clock, AlertTriangle, ChevronDown, ChevronUp, Store,
 } from "lucide-react";
 
 const fmtVND = (n: number) =>
@@ -200,7 +201,7 @@ export default function AdminPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = useState<"products" | "auctions" | "categories" | "users">("products");
+  const [tab, setTab] = useState<"products" | "auctions" | "categories" | "users" | "sellers">("products");
 
   // ── Products state ──────────────────────────────────────────────────────────
   const [productStatusFilter, setProductStatusFilter] = useState<ProductStatus | "all">("all");
@@ -405,12 +406,30 @@ export default function AdminPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || "Không thể xóa"),
   });
 
+  // ── Pending Sellers state ──────────────────────────────────────────────────
+  const { data: pendingSellers = [], isLoading: loadingSellers } = useQuery<SellerProfile[]>({
+    queryKey: ["pending-sellers"],
+    queryFn: getPendingSellers,
+    enabled: tab === "sellers",
+  });
+
+  const verifySellerMutation = useMutation({
+    mutationFn: (sellerId: string) => verifySeller(sellerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pending-sellers"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast.success("Đã phê duyệt người bán thành công! Tài khoản đã được nâng cấp lên SELLER.");
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || "Không thể phê duyệt người bán"),
+  });
+
   // ── Tabs config ───────────────────────────────────────────────────────────────
   const TABS = [
     { id: "products",   label: "Sản phẩm",   icon: "📦" },
     { id: "auctions",   label: "Đấu giá",    icon: "🔨" },
     { id: "categories", label: "Danh mục",   icon: "🗂️" },
     { id: "users",      label: "Người dùng", icon: "👥" },
+    { id: "sellers",    label: "Duyệt Người Bán", icon: "🏪" },
   ] as const;
 
   const PRODUCT_STATUS_TABS: { key: ProductStatus | "all"; label: string }[] = [
@@ -970,6 +989,81 @@ export default function AdminPage() {
                   <span className="text-[11px] text-gray-400">* Chỉ ADMIN mới có thể phân quyền và xóa người dùng</span>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TAB: DUYỆT NGƯỜI BÁN ══════════════════════════════════════════════ */}
+      {tab === "sellers" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <Store size={20} className="text-nexus-600" />
+              Yêu cầu đăng ký Shop chờ duyệt
+            </h2>
+            <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full font-medium">
+              Chờ duyệt: <b>{pendingSellers.length}</b> shop
+            </span>
+          </div>
+
+          {loadingSellers ? (
+            <LoadingSpinner />
+          ) : pendingSellers.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+              <CheckCircle size={40} className="mx-auto text-emerald-400 mb-3" />
+              <p className="font-semibold text-gray-600">Không có hồ sơ nào đang chờ duyệt</p>
+              <p className="text-xs text-gray-400 mt-1">Tất cả yêu cầu mở Shop đã được xem xét và xử lý.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-medium border-b border-gray-100">
+                    <tr>
+                      <th className="px-5 py-3">Tên Shop</th>
+                      <th className="px-5 py-3">Mô tả</th>
+                      <th className="px-5 py-3">Mã Tài Khoản</th>
+                      <th className="px-5 py-3 text-center">Trạng thái</th>
+                      <th className="px-5 py-3 text-right">Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {pendingSellers.map((s) => (
+                      <tr key={s.id} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="px-5 py-4 font-semibold text-gray-800">
+                          {s.shopName}
+                          <div className="text-[11px] text-gray-400 font-mono font-normal">/{s.shopSlug}</div>
+                        </td>
+                        <td className="px-5 py-4 text-gray-600 max-w-xs truncate">
+                          {s.description || "Chưa có mô tả"}
+                        </td>
+                        <td className="px-5 py-4 text-xs font-mono text-gray-500">
+                          {s.userId}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold border border-amber-200">
+                            <Clock size={11} /> Chờ duyệt
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <button
+                            onClick={() => {
+                              if (confirm(`Phê duyệt shop "${s.shopName}" và cấp quyền SELLER cho người dùng này?`)) {
+                                verifySellerMutation.mutate(s.userId);
+                              }
+                            }}
+                            disabled={verifySellerMutation.isPending}
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <Check size={14} /> Phê duyệt Shop
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

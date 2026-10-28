@@ -21,11 +21,7 @@ interface Voucher {
   active: boolean; desc: string;
 }
 
-const INIT_VOUCHERS: Voucher[] = [
-  { id:"v1", code:"MYSHOP10", type:"percent", discount:10, minOrder:0,         maxUses:100, usedCount:47, startDate:"2024-10-01", endDate:"2024-12-31", active:true,  desc:"Giảm 10% không giới hạn đơn" },
-  { id:"v2", code:"SALE20K",  type:"flat",    discount:20_000, minOrder:150_000, maxUses:50,  usedCount:50, startDate:"2024-10-01", endDate:"2024-10-31", active:false, desc:"Giảm 20.000đ đơn từ 150k" },
-  { id:"v3", code:"VIP30",    type:"percent", discount:30, minOrder:500_000,   maxUses:20,  usedCount:8,  startDate:"2024-11-01", endDate:"2024-11-30", active:true,  desc:"VIP giảm 30% đơn từ 500k" },
-];
+const INIT_VOUCHERS: Voucher[] = [];
 
 // ── Voucher status ─────────────────────────────────────────────────────────
 function VoucherStatus({ v }: { v: Voucher }) {
@@ -359,9 +355,9 @@ export default function SellerDashboard() {
         <div className="grid sm:grid-cols-2 gap-5">
           {[
             { icon:<Package size={22} className="text-nexus-500"/>, label:"Sản phẩm đang bán", val: myProducts.length, color:"bg-indigo-50 border-indigo-100" },
-            { icon:<Eye size={22} className="text-blue-500"/>, label:"Lượt xem tháng này", val:"1.234", color:"bg-blue-50 border-blue-100" },
-            { icon:<Star size={22} className="text-amber-500"/>, label:"Điểm uy tín trung bình", val:"4.7 ★", color:"bg-amber-50 border-amber-100" },
-            { icon:<TrendingUp size={22} className="text-emerald-500"/>, label:"Đơn hàng tháng này", val:"58", color:"bg-emerald-50 border-emerald-100" },
+            { icon:<Eye size={22} className="text-blue-500"/>, label:"Lượt xem tháng này", val: "0", color:"bg-blue-50 border-blue-100" },
+            { icon:<Star size={22} className="text-amber-500"/>, label:"Điểm uy tín trung bình", val: "0.0 ★", color:"bg-amber-50 border-amber-100" },
+            { icon:<TrendingUp size={22} className="text-emerald-500"/>, label:"Đơn hàng tháng này", val: "0", color:"bg-emerald-50 border-emerald-100" },
           ].map(s=>(
             <div key={s.label} className={`${s.color} border rounded-2xl p-6 flex items-center gap-4`}>
               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0">{s.icon}</div>

@@ -34,9 +34,9 @@ export default function ProductCard({ product, onAddToCart }: Props) {
         </div>
       )}
 
-      {/* Product image */}
-      <Link to={`/products/${product.productId}`} className="relative overflow-hidden">
-        <div className="aspect-square bg-gray-50 overflow-hidden">
+      {/* Product image container */}
+      <div className="relative overflow-hidden aspect-square bg-gray-50">
+        <Link to={`/products/${product.productId}`} className="block w-full h-full">
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
@@ -51,21 +51,29 @@ export default function ProductCard({ product, onAddToCart }: Props) {
           ) : (
             <div className="w-full h-full flex items-center justify-center text-4xl">📦</div>
           )}
-        </div>
+        </Link>
 
-        {/* Add to cart — hover overlay */}
+        {/* Add to cart — hover overlay button */}
         {onAddToCart && !isOutOfStock && (
-          <div className="absolute bottom-0 left-0 right-0 bg-nexus-700/90 text-white text-xs font-semibold py-2 text-center
-            translate-y-full group-hover:translate-y-0 transition-transform duration-200 flex items-center justify-center gap-1.5">
-            <ShoppingCart size={13} /> Thêm vào giỏ
-          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAddToCart(product.productId);
+            }}
+            className="absolute bottom-0 left-0 right-0 bg-nexus-700/95 hover:bg-nexus-800 text-white text-xs font-semibold py-2.5 text-center
+              translate-y-full group-hover:translate-y-0 transition-transform duration-200 flex items-center justify-center gap-1.5 z-20 cursor-pointer shadow-md"
+          >
+            <ShoppingCart size={14} /> Thêm vào giỏ
+          </button>
         )}
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+          <div className="absolute inset-0 bg-white/60 flex items-center justify-center pointer-events-none">
             <span className="text-xs font-semibold text-gray-500 bg-white px-2 py-1 rounded-full border">Hết hàng</span>
           </div>
         )}
-      </Link>
+      </div>
 
       <div className="p-3 flex flex-col flex-1 gap-1.5">
         <Link
@@ -99,27 +107,7 @@ export default function ProductCard({ product, onAddToCart }: Props) {
           <MapPin size={10} />
           <span>TP. Hồ Chí Minh</span>
         </div>
-
-        {/* Invisible button for programmatic add-to-cart (hover overlay handles visual) */}
-        {onAddToCart && (
-          <button
-            onClick={() => onAddToCart(product.productId)}
-            disabled={isOutOfStock}
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden
-          />
-        )}
       </div>
-
-      {/* Clickable overlay for add-to-cart on hover (mobile fallback) */}
-      {onAddToCart && !isOutOfStock && (
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart(product.productId); }}
-          className="absolute bottom-0 left-0 right-0 h-8 opacity-0 group-hover:opacity-100 cursor-pointer"
-          aria-label="Thêm vào giỏ"
-        />
-      )}
     </div>
   );
 }

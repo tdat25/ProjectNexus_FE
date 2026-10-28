@@ -109,6 +109,8 @@ export default function RegisterPage() {
     return { summary, details };
   };
 
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -179,20 +181,8 @@ export default function RegisterPage() {
       // 1. Gọi đăng ký
       await register(payload);
 
-      setSuccessMessage("Đăng ký thành công! Đang tự động đăng nhập...");
-      toast.success("Đăng ký tài khoản thành công!");
-
-      // 2. Tự động đăng nhập
-      try {
-        const u = await login(email.trim().toLowerCase(), password);
-        if (u.role === "BUYER") await mergeGuestCartToBackend().catch(() => {});
-        setTimeout(() => {
-          navigate("/");
-        }, 1000);
-      } catch {
-        toast.success("Tạo tài khoản thành công! Hãy đăng nhập để bắt đầu.");
-        navigate("/login");
-      }
+      toast.success("Đăng ký tài khoản thành công! Vui lòng xác thực email.");
+      setRegisteredEmail(email.trim().toLowerCase());
     } catch (err: any) {
       const { summary, details } = parseErrors(err);
       setErrorMessage(summary);
@@ -202,6 +192,46 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
+
+  if (registeredEmail) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-nexus-50 via-gray-50 to-white flex items-center justify-center py-10 px-4">
+        <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-8 text-center border border-gray-100">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 text-green-600 rounded-full mb-4">
+            <CheckCircle2 size={36} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Đăng ký thành công!</h2>
+          <p className="text-gray-600 text-sm mb-3 leading-relaxed">
+            Chúng tôi đã gửi email kích hoạt tài khoản kèm đường link xác nhận tới địa chỉ:
+          </p>
+          <div className="bg-nexus-50 text-nexus-800 font-semibold py-2.5 px-4 rounded-xl text-base mb-5 border border-nexus-100 break-all">
+            {registeredEmail}
+          </div>
+          <div className="p-4 bg-amber-50 rounded-xl text-left text-xs text-amber-800 border border-amber-200 mb-6 flex gap-3">
+            <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold mb-1">Hướng dẫn tiếp theo:</p>
+              <p>Vui lòng mở hộp thư email của bạn và nhấn vào liên kết xác nhận để kích hoạt tài khoản trước khi đăng nhập. Nếu không thấy trong Hộp thư đến, vui lòng kiểm tra thư mục <strong>Spam / Thư rác</strong>.</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            <Link
+              to="/login"
+              className="w-full bg-nexus-600 hover:bg-nexus-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-md block text-center"
+            >
+              Đến trang Đăng nhập
+            </Link>
+            <button
+              onClick={() => setRegisteredEmail(null)}
+              className="text-xs text-gray-400 hover:text-gray-600 underline"
+            >
+              Đăng ký bằng email khác
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-nexus-50 via-gray-50 to-white flex items-center justify-center py-10 px-4">

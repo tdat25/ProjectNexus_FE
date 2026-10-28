@@ -18,7 +18,7 @@ const fmtVND = (n: number) =>
 
 // ─── Guest Cart View ─────────────────────────────────────────────────────────
 function GuestCartView() {
-  const { guestCart, removeFromGuestCart } = useCart();
+  const { guestCart, updateGuestCartQuantity, removeFromGuestCart } = useCart();
   const isEmpty = guestCart.length === 0;
 
   return (
@@ -63,15 +63,34 @@ function GuestCartView() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-800 truncate">{item.productName}</p>
-                <p className="text-sm text-gray-400">
-                  {item.quantity} × {fmtVND(item.price)}
-                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                    <button
+                      onClick={() => updateGuestCartQuantity(item.productId, item.quantity - 1)}
+                      className="w-7 h-7 flex items-center justify-center hover:bg-gray-200 text-gray-600 font-bold transition-colors"
+                      title="Giảm số lượng"
+                    >
+                      -
+                    </button>
+                    <span className="w-9 text-center text-sm font-semibold text-gray-800">
+                      {item.quantity}
+                    </span>
+                    <button
+                      onClick={() => updateGuestCartQuantity(item.productId, item.quantity + 1)}
+                      className="w-7 h-7 flex items-center justify-center hover:bg-gray-200 text-gray-600 font-bold transition-colors"
+                      title="Tăng số lượng"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="text-xs text-gray-400">× {fmtVND(item.price)}</span>
+                </div>
               </div>
               <div className="text-right">
                 <p className="font-bold text-nexus-700">{fmtVND(item.price * item.quantity)}</p>
                 <button
                   onClick={() => removeFromGuestCart(item.productId)}
-                  className="text-red-400 hover:text-red-600 mt-1 transition-colors"
+                  className="text-red-400 hover:text-red-600 mt-2 transition-colors p-1"
                   title="Xóa khỏi giỏ"
                 >
                   <Trash2 size={16} />
@@ -122,6 +141,15 @@ function LoggedInCartView() {
     onError: () => toast.error("Không thể xóa, thử lại nhé"),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ productId, quantity }: { productId: string; quantity: number }) =>
+      import("@shared/api/commerce").then(m => m.updateCartItemQuantity(productId, quantity)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+    },
+    onError: () => toast.error("Không thể cập nhật số lượng"),
+  });
+
   if (isLoading) return <LoadingSpinner />;
   if (isError)
     return (
@@ -163,15 +191,45 @@ function LoggedInCartView() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-800 truncate">{item.productName}</p>
-                <p className="text-sm text-gray-400">
-                  {item.quantity} × {fmtVND(item.unitPrice)}
-                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                    <button
+                      onClick={() => {
+                        if (item.quantity > 1) {
+                          updateMutation.mutate({ productId: item.productId, quantity: item.quantity - 1 });
+                        } else {
+                          removeMutation.mutate(item.productId);
+                        }
+                      }}
+                      disabled={updateMutation.isPending || removeMutation.isPending}
+                      className="w-7 h-7 flex items-center justify-center hover:bg-gray-200 text-gray-600 font-bold transition-colors disabled:opacity-50"
+                      title="Giảm số lượng"
+                    >
+                      -
+                    </button>
+                    <span className="w-9 text-center text-sm font-semibold text-gray-800">
+                      {item.quantity}
+                    </span>
+                    <button
+                      onClick={() => {
+                        updateMutation.mutate({ productId: item.productId, quantity: item.quantity + 1 });
+                      }}
+                      disabled={updateMutation.isPending || removeMutation.isPending}
+                      className="w-7 h-7 flex items-center justify-center hover:bg-gray-200 text-gray-600 font-bold transition-colors disabled:opacity-50"
+                      title="Tăng số lượng"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="text-xs text-gray-400">× {fmtVND(item.unitPrice)}</span>
+                </div>
               </div>
               <div className="text-right">
                 <p className="font-bold text-nexus-700">{fmtVND(item.subtotal)}</p>
                 <button
                   onClick={() => removeMutation.mutate(item.productId)}
-                  className="text-red-400 hover:text-red-600 mt-1 transition-colors"
+                  disabled={removeMutation.isPending}
+                  className="text-red-400 hover:text-red-600 mt-2 transition-colors p-1"
                   title="Xóa khỏi giỏ"
                 >
                   <Trash2 size={16} />

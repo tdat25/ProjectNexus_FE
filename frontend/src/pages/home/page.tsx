@@ -425,18 +425,22 @@ export default function HomePage() {
     timerRef.current = setInterval(()=>setHero(c=>(c+1)%HERO_BANNERS.length), 5000);
   }, []);
 
+  const isCatGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(urlCat);
+  const effectiveSearch = urlSearch || (!isCatGuid && urlCat ? urlCat : undefined);
+  const effectiveCatId = isCatGuid ? urlCat : undefined;
+
   const { data: apiData, isLoading, isError } = useQuery({
-    queryKey: ["products", page, urlSearch, urlCat],
-    queryFn: ()=>getProducts({ page, pageSize:PAGE_SIZE, search:urlSearch||undefined, categoryId:urlCat||undefined }),
-    placeholderData: prev=>prev,
+    queryKey: ["products", page, effectiveSearch, effectiveCatId],
+    queryFn: () => getProducts({ page, pageSize: PAGE_SIZE, search: effectiveSearch, categoryId: effectiveCatId }),
+    placeholderData: prev => prev,
   });
-  const { data: categories } = useQuery({ queryKey:["categories"], queryFn:getCategories, staleTime:5*60_000 });
-  const activeCatName = categories?.find(c=>c.categoryId===urlCat)?.name ?? "";
+  const { data: categories } = useQuery({ queryKey: ["categories"], queryFn: getCategories, staleTime: 5 * 60_000 });
+  const activeCatName = categories?.find(c => c.categoryId === urlCat)?.name || urlCat;
   const useApi = !isError && !!apiData?.items?.length;
 
-  const displayCats = STATIC_CATEGORIES.map(sc=>{
-    const api = categories?.find(c=>c.name.toLowerCase().includes(sc.name.toLowerCase()));
-    return { ...sc, catId: api?.categoryId ?? sc.name };
+  const displayCats = STATIC_CATEGORIES.map(sc => {
+    const api = categories?.find(c => c.name.toLowerCase().includes(sc.name.toLowerCase()) || sc.name.toLowerCase().includes(c.name.toLowerCase()));
+    return { ...sc, catId: api?.categoryId };
   });
 
   const handleApiCart = async (productId: string) => {
@@ -546,7 +550,10 @@ export default function HomePage() {
             </div>
             <div ref={catRef} className="flex overflow-x-auto scrollbar-none border-b border-gray-50">
               {displayCats.map((c,i)=>(
-                <button key={c.name} onClick={()=>navigate(`/?cat=${c.catId}`)}
+                <button key={c.name} onClick={() => {
+                  if (c.catId) navigate(`/?cat=${c.catId}`);
+                  else navigate(`/?search=${encodeURIComponent(c.name)}`);
+                }}
                   className={`flex flex-col items-center gap-2 py-4 px-4 min-w-[90px] hover:bg-indigo-50 transition-colors group shrink-0 ${i>0?"border-l border-gray-50":""}`}>
                   <div className="w-14 h-14 rounded-full overflow-hidden ring-2 ring-gray-100 group-hover:ring-nexus-300 transition-all shadow-sm">
                     <img src={c.img} alt={c.name} className="w-full h-full object-cover"

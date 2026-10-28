@@ -34,6 +34,8 @@ export default function AppRouter() {
             <main>
               <Routes>
                 <Route path="/" element={<HomePage />} />
+                <Route path="/products" element={<HomePage />} />
+                <Route path="/product/:id" element={<ProductDetailPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route path="/policy" element={<PolicyPage />} />
                 <Route path="/auctions" element={<AuctionListPage />} />

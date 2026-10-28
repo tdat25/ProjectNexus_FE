@@ -19,10 +19,7 @@ export default function RegisterSellerPage() {
   const mutation = useMutation({
     mutationFn: () => registerSeller({ shopName: form.shopName.trim(), description: form.description.trim() }),
     onSuccess: (data) => {
-      toast.success(data.message || "Đăng ký shop thành công!");
-      // Cập nhật role trong state + localStorage trước, rồi để user tự bấm nút
-      // tránh race condition: navigate ngay sau setUser (async) có thể gặp role cũ
-      updateUser({ role: "SELLER" });
+      toast.success(data.message || "Đăng ký shop thành công! Hồ sơ đang chờ Admin phê duyệt.");
       setDone(true);
     },
     onError: (err: any) => {
@@ -30,8 +27,33 @@ export default function RegisterSellerPage() {
     },
   });
 
+  if (done) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
+        <div className="text-center max-w-md bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-100 rounded-full mb-5">
+            <Clock size={44} className="text-amber-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">
+            Đăng ký Shop đang chờ duyệt!
+          </h2>
+          <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+            Hồ sơ mở Shop <strong>"{form.shopName}"</strong> của bạn đã được ghi nhận và đang chờ Ban Quản Trị phê duyệt.
+          </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 mb-6 text-left leading-relaxed">
+            Sau khi được Ban Quản Trị phê duyệt, tài khoản của bạn sẽ tự động chuyển thành Người Bán (SELLER) và mở khóa toàn bộ tính năng đăng bán sản phẩm.
+          </div>
+          <Link to="/" replace
+            className="inline-flex items-center justify-center gap-2 bg-nexus-600 hover:bg-nexus-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors w-full shadow-md">
+            Quay về Trang chủ <ArrowRight size={18} />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   // Đã là seller/admin → không cần đăng ký nữa
-  if (user?.role === "SELLER" || user?.role === "ADMIN" || done) {
+  if (user?.role === "SELLER" || user?.role === "ADMIN") {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
         <div className="text-center max-w-sm">
@@ -39,14 +61,11 @@ export default function RegisterSellerPage() {
             <CheckCircle size={44} className="text-emerald-500" />
           </div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">
-            {done ? "Đăng ký thành công!" : "Bạn đã là người bán!"}
+            Bạn đã là người bán!
           </h2>
           <p className="text-gray-500 text-sm mb-6">
-            {done
-              ? `Shop "${form.shopName}" đã được tạo. Bắt đầu đăng sản phẩm ngay!`
-              : "Tài khoản của bạn đã có quyền bán hàng trên Nexus."}
+            Tài khoản của bạn đã có quyền bán hàng trên Nexus.
           </p>
-          {/* Dùng Link thay vì navigate() để React Router tự xử lý sau khi state đã commit */}
           <Link to="/seller/dashboard" replace
             className="inline-flex items-center gap-2 bg-nexus-600 hover:bg-nexus-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">
             Vào Kênh Người Bán <ArrowRight size={18} />
