@@ -3,6 +3,8 @@
 // ============================================================
 import { catalogClient } from "./client";
 
+export type ProductStatus = "Pending" | "Approved" | "Hidden" | "Rejected";
+
 export interface Product {
   productId: string;
   name: string;
@@ -12,8 +14,10 @@ export interface Product {
   categoryId: string;
   categoryName?: string;
   sellerId: string;
+  sellerName?: string;
   imageUrl?: string;
   createdAt: string;
+  status?: ProductStatus;
 }
 
 export interface Category {
@@ -29,67 +33,64 @@ export interface ProductListResponse {
   pageSize: number;
 }
 
-import { MOCK_CATEGORIES, MOCK_PRODUCTS } from "@shared/mock/mockData";
-
-const STORAGE_KEY_PRODUCTS = "nexus_custom_products";
-
-function getStoredProducts(): Product[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return MOCK_PRODUCTS;
-}
-
-function saveStoredProducts(products: Product[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
-  } catch {}
-}
-
 // Lấy danh sách sản phẩm, có thể lọc theo category hoặc tìm kiếm
 export const getProducts = (params?: {
   page?: number;
   pageSize?: number;
   categoryId?: string;
   search?: string;
+  status?: ProductStatus | "all";
 }) =>
   catalogClient
     .get<ProductListResponse>("/api/v1/products", { params: {
       page: params?.page,
       pageSize: params?.pageSize,
       categoryId: params?.categoryId,
-      keyword: params?.search,  // backend dùng "keyword" thay vì "search"
+      keyword: params?.search,
+      status: params?.status,
+    }})
+    .then((r) => r.data);
+
+// Admin: lấy tất cả sản phẩm (kể cả Pending/Hidden)
+export const getAdminProducts = (params?: {
+  page?: number;
+  pageSize?: number;
+  status?: ProductStatus | "all";
+  search?: string;
+}) =>
+  catalogClient
+    .get<ProductListResponse>("/api/v1/admin/products", { params: {
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 50,
+      status: params?.status !== "all" ? params?.status : undefined,
+      keyword: params?.search,
     }})
     .then((r) => r.data)
-    .catch(() => {
-      // Fallback sang mock data khi backend Gateway chưa chạy
-      let items = getStoredProducts();
-      if (params?.categoryId) {
-        items = items.filter(p => p.categoryId === params.categoryId);
-      }
-      if (params?.search) {
-        const s = params.search.toLowerCase();
-        items = items.filter(p => p.name.toLowerCase().includes(s) || p.description.toLowerCase().includes(s));
-      }
-      return {
-        items,
-        totalCount: items.length,
-        page: params?.page ?? 1,
-        pageSize: params?.pageSize ?? 20,
-      };
-    });
+    .catch(() =>
+      // fallback: dùng endpoint thường nếu admin endpoint chưa có
+      catalogClient
+        .get<ProductListResponse>("/api/v1/products", { params: {
+          page: params?.page ?? 1,
+          pageSize: params?.pageSize ?? 50,
+        }})
+        .then((r) => r.data)
+    );
+
+// Admin: duyệt sản phẩm (Pending → Approved)
+export const approveProduct = (id: string) =>
+  catalogClient.patch(`/api/v1/products/${id}/approve`).then((r) => r.data);
+
+// Admin: ẩn sản phẩm (Approved → Hidden)
+export const hideProduct = (id: string) =>
+  catalogClient.patch(`/api/v1/products/${id}/hide`).then((r) => r.data);
+
+// Admin: từ chối sản phẩm (Pending → Rejected)
+export const rejectProduct = (id: string) =>
+  catalogClient.patch(`/api/v1/products/${id}/reject`).then((r) => r.data);
 
 // Xem chi tiết một sản phẩm
 export const getProduct = (id: string) =>
-  catalogClient
-    .get<Product>(`/api/v1/products/${id}`)
-    .then((r) => r.data)
-    .catch(() => {
-      const items = getStoredProducts();
-      const found = items.find(p => p.productId === id);
-      return found ?? items[0];
-    });
+  catalogClient.get<Product>(`/api/v1/products/${id}`).then((r) => r.data);
 
 // Tạo sản phẩm mới (chỉ SELLER/ADMIN)
 export const createProduct = (data: {
@@ -98,57 +99,29 @@ export const createProduct = (data: {
   price: number;
   stockQuantity: number;
   categoryId: string;
-  imageUrl?: string;
-}) =>
-  catalogClient
-    .post<Product>("/api/v1/products", data)
-    .then((r) => r.data)
-    .catch(() => {
-      const items = getStoredProducts();
-      const newProd: Product = {
-        productId: `prod-${Date.now().toString().slice(-4)}`,
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        stockQuantity: data.stockQuantity,
-        categoryId: data.categoryId,
-        sellerId: "user-001",
-        imageUrl: data.imageUrl || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80",
-        createdAt: new Date().toISOString(),
-      };
-      saveStoredProducts([newProd, ...items]);
-      return newProd;
-    });
+}) => catalogClient.post<Product>("/api/v1/products", data).then((r) => r.data);
 
 // Sửa sản phẩm
 export const updateProduct = (id: string, data: Partial<Product>) =>
-  catalogClient
-    .put<Product>(`/api/v1/products/${id}`, data)
-    .then((r) => r.data)
-    .catch(() => {
-      const items = getStoredProducts();
-      const next = items.map((p) => (p.productId === id ? { ...p, ...data } : p));
-      saveStoredProducts(next);
-      return next.find((p) => p.productId === id) || (data as Product);
-    });
+  catalogClient.put<Product>(`/api/v1/products/${id}`, data).then((r) => r.data);
 
 // Xóa sản phẩm
 export const deleteProduct = (id: string) =>
-  catalogClient
-    .delete(`/api/v1/products/${id}`)
-    .catch(() => {
-      const items = getStoredProducts();
-      const next = items.filter((p) => p.productId !== id);
-      saveStoredProducts(next);
-    });
+  catalogClient.delete(`/api/v1/products/${id}`);
 
 // Lấy tất cả danh mục
 export const getCategories = () =>
-  catalogClient
-    .get<Category[]>("/api/v1/categories")
-    .then((r) => r.data)
-    .catch(() => MOCK_CATEGORIES);
+  catalogClient.get<Category[]>("/api/v1/categories").then((r) => r.data);
 
-// Tạo danh mục mới (ADMIN)
+// Tạo danh mục mới (ADMIN / SELLER)
 export const createCategory = (data: { name: string; parentCategoryId?: string }) =>
   catalogClient.post<Category>("/api/v1/categories", data).then((r) => r.data);
+
+// Cập nhật / đổi tên danh mục
+export const updateCategory = (id: string, name: string) =>
+  catalogClient.put(`/api/v1/categories/${id}`, { name });
+
+// Xóa danh mục
+export const deleteCategory = (id: string) =>
+  catalogClient.delete(`/api/v1/categories/${id}`);
+

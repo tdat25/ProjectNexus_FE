@@ -36,6 +36,7 @@ function makeClient(baseURL: string) {
     (err) => {
       if (err.response?.status === 401) {
         localStorage.removeItem("nexus_token");
+        localStorage.removeItem("nexus_refresh");
         localStorage.removeItem("nexus_user");
         window.location.href = "/login";
       }

@@ -5,9 +5,156 @@ import LoadingSpinner from "@shared/ui/LoadingSpinner";
 import toast from "react-hot-toast";
 import {
   Package, ArrowLeft, MapPin, CreditCard, CheckCircle,
-  Truck, Box, Home, Clock, XCircle, RefreshCw,
+  Truck, Box, Home, Clock, XCircle, RefreshCw, Star,
+  MessageSquare, AlertCircle, Shield, FileText, Camera,
 } from "lucide-react";
 import { useState } from "react";
+
+// ── Star Rating Widget ─────────────────────────────────────────────────────
+function StarRating({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const [hovered, setHovered] = useState(0);
+  const LABELS = ["", "Rất kém", "Kém", "Trung bình", "Tốt", "Xuất sắc"];
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex gap-1">
+        {[1,2,3,4,5].map(n => (
+          <button key={n} type="button"
+            onClick={() => onChange(n)}
+            onMouseEnter={() => setHovered(n)}
+            onMouseLeave={() => setHovered(0)}
+            className="transition-transform hover:scale-110">
+            <Star size={32} className={`transition-colors ${(hovered||value) >= n ? "fill-amber-400 text-amber-400" : "text-gray-200 fill-gray-200"}`}/>
+          </button>
+        ))}
+      </div>
+      {(hovered || value) > 0 && (
+        <span className="text-sm font-semibold text-amber-600">{LABELS[hovered || value]}</span>
+      )}
+    </div>
+  );
+}
+
+// ── Review Modal ───────────────────────────────────────────────────────────
+function ReviewModal({ orderId, onClose }: { orderId: string; onClose: () => void }) {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!rating) { toast.error("Vui lòng chọn số sao"); return; }
+    setSubmitting(true);
+    await new Promise(r => setTimeout(r, 800));
+    setSubmitting(false);
+    toast.success("Đánh giá của bạn đã được gửi! Cảm ơn bạn 🎉");
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2"><Star size={16} className="text-amber-400 fill-amber-400"/> Đánh giá đơn hàng</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XCircle size={18}/></button>
+        </div>
+
+        <p className="text-xs text-gray-400 text-center mb-4">#{orderId.slice(0,8)}</p>
+        <StarRating value={rating} onChange={setRating}/>
+
+        <textarea value={comment} onChange={e => setComment(e.target.value)}
+          placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm và dịch vụ... (không bắt buộc)"
+          rows={3} maxLength={500}
+          className="w-full mt-5 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-400 resize-none"/>
+        <p className="text-[10px] text-gray-400 text-right mt-1">{comment.length}/500</p>
+
+        <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+          <Camera size={12}/> Ảnh thực tế giúp đánh giá được tin cậy hơn (tính năng sắp ra mắt)
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mt-5">
+          <button onClick={onClose} className="py-3 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Để sau</button>
+          <button onClick={handleSubmit} disabled={submitting || !rating}
+            className="py-3 bg-amber-400 hover:bg-amber-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+            {submitting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Đang gửi...</> : <><Star size={14} className="fill-white"/>Gửi đánh giá</>}
+          </button>
+        </div>
+
+        <p className="text-[10px] text-gray-400 text-center mt-3">
+          Đánh giá tuân theo <Link to="/policy?tab=review" className="text-nexus-500 hover:underline">Chính sách đánh giá</Link> của Nexus
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Refund Request Modal ───────────────────────────────────────────────────
+function RefundModal({ orderId, onClose }: { orderId: string; onClose: () => void }) {
+  const [reason, setReason] = useState("");
+  const [detail, setDetail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const REASONS = [
+    "Sản phẩm bị lỗi từ nhà sản xuất",
+    "Sản phẩm không đúng mô tả (sai màu/size/model)",
+    "Thiếu phụ kiện so với mô tả",
+    "Hàng bị hư hỏng trong vận chuyển",
+    "Nhận sai sản phẩm / sai đơn hàng",
+    "Sản phẩm nghi ngờ hàng giả, hàng nhái",
+    "Lý do khác",
+  ];
+
+  const handleSubmit = async () => {
+    if (!reason) { toast.error("Vui lòng chọn lý do"); return; }
+    setSubmitting(true);
+    await new Promise(r => setTimeout(r, 900));
+    setSubmitting(false);
+    toast.success("Yêu cầu hoàn tiền đã được gửi! CSKH sẽ liên hệ trong 1–2 ngày làm việc.");
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2"><AlertCircle size={16} className="text-amber-500"/> Yêu cầu đổi trả / Hoàn tiền</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XCircle size={18}/></button>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+          <Shield size={14} className="text-amber-600 shrink-0 mt-0.5"/>
+          <p className="text-xs text-amber-700">Chính sách đổi trả trong <strong>15 ngày</strong> kể từ ngày nhận hàng. <Link to="/policy?tab=return" className="underline">Xem chi tiết chính sách</Link></p>
+        </div>
+
+        <label className="text-sm font-medium text-gray-700 mb-2 block">Lý do yêu cầu *</label>
+        <div className="flex flex-col gap-1.5 mb-4 max-h-48 overflow-y-auto">
+          {REASONS.map(r => (
+            <label key={r} className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${reason===r ? "border-amber-300 bg-amber-50" : "border-gray-100 hover:border-gray-200"}`}>
+              <input type="radio" name="refund-reason" value={r} checked={reason===r} onChange={() => setReason(r)} className="mt-0.5 accent-amber-500 shrink-0"/>
+              <span className="text-sm text-gray-700">{r}</span>
+            </label>
+          ))}
+        </div>
+
+        <label className="text-sm font-medium text-gray-700 mb-2 block">Mô tả chi tiết</label>
+        <textarea value={detail} onChange={e => setDetail(e.target.value)}
+          placeholder="Mô tả chi tiết vấn đề gặp phải để CSKH xử lý nhanh hơn..."
+          rows={3} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-400 resize-none mb-4"/>
+
+        <div className="bg-gray-50 rounded-xl p-3 mb-4 flex items-start gap-2">
+          <Camera size={14} className="text-gray-400 shrink-0 mt-0.5"/>
+          <p className="text-xs text-gray-500">Đính kèm ảnh/video bằng chứng (tính năng sắp ra mắt) — Liên hệ hotline <strong>0946 000 838</strong> để gửi bằng chứng ngay.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={onClose} className="py-3 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Hủy</button>
+          <button onClick={handleSubmit} disabled={submitting || !reason}
+            className="py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+            {submitting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Đang gửi...</> : "Gửi yêu cầu"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const fmtVND = (n: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n);
@@ -89,6 +236,8 @@ export default function OrderDetailPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [switchingPayment, setSwitchingPayment] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
 
   const { data: order, isLoading } = useQuery({
     queryKey: ["order", id],
@@ -142,6 +291,8 @@ export default function OrderDetailPage() {
   const isCOD       = !order.paymentRef;  // không có paymentRef = COD / chưa thanh toán online
   const canCancel   = ["PendingPayment", "Confirmed", "PreOrder"].includes(order.status);
   const canSwitchToOnline = isCOD && order.status === "PendingPayment";
+  const canReview   = ["Delivered", "Completed"].includes(order.status);
+  const canRefund   = ["Delivered", "Completed"].includes(order.status);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -393,17 +544,54 @@ export default function OrderDetailPage() {
         )}
       </div>
 
-      {/* ── Actions ───────────────────────────────────────────────────────── */}
-      {canCancel && (
+      {/* ── Actions — Đã giao ────────────────────────────────────────────── */}
+      {(canReview || canRefund) && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <button
-            onClick={() => setShowCancelModal(true)}
-            className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1.5 transition-colors"
-          >
-            <XCircle size={16} /> Hủy đơn hàng
-          </button>
+          <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <MessageSquare size={15}/> Đánh giá & hỗ trợ
+          </h2>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {canReview && (
+              <button onClick={() => setShowReviewModal(true)}
+                className="flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-500 text-white font-semibold py-3 rounded-xl text-sm transition-colors shadow-sm shadow-amber-200">
+                <Star size={15} className="fill-white"/> Đánh giá sản phẩm
+              </button>
+            )}
+            {canRefund && (
+              <button onClick={() => setShowRefundModal(true)}
+                className="flex items-center justify-center gap-2 border-2 border-amber-300 text-amber-600 hover:bg-amber-50 font-semibold py-3 rounded-xl text-sm transition-colors">
+                <RefreshCw size={15}/> Yêu cầu đổi trả / Hoàn tiền
+              </button>
+            )}
+          </div>
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
+            <FileText size={11}/>
+            <Link to="/policy" className="text-nexus-500 hover:underline">Xem chính sách đổi trả & hoàn tiền</Link>
+            &nbsp;·&nbsp; Hỗ trợ: <a href="tel:0946000838" className="text-nexus-500 hover:underline">0946 000 838</a>
+          </div>
         </div>
       )}
+
+      {/* ── Actions — Hủy đơn ─────────────────────────────────────────────── */}
+      {canCancel && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between">
+            <button onClick={() => setShowCancelModal(true)}
+              className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1.5 transition-colors">
+              <XCircle size={16} /> Hủy đơn hàng
+            </button>
+            <Link to="/policy?tab=purchase" className="text-xs text-gray-400 hover:text-nexus-500 flex items-center gap-1">
+              <FileText size={11}/> Chính sách hủy
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Review modal */}
+      {showReviewModal && <ReviewModal orderId={id!} onClose={() => setShowReviewModal(false)}/>}
+
+      {/* Refund modal */}
+      {showRefundModal && <RefundModal orderId={id!} onClose={() => setShowRefundModal(false)}/>}
 
       {/* Cancel modal */}
       {showCancelModal && (

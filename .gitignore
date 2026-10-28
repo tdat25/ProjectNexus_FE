@@ -35,3 +35,7 @@ logs/
 
 # IDE & Agents
 .gemini/
+ 
+# Archives
+*.rar
+*.zip

@@ -74,8 +74,11 @@ export default function AuctionDetailPage() {
     },
   });
 
+  const canBid = !isLoggedIn || user?.role === "BUYER";
+
   const handleBid = () => {
     if (!isLoggedIn) { toast.error("Đăng nhập để đặt giá"); return; }
+    if (!canBid) return; // SELLER/ADMIN không đặt giá
     const amount = parseFloat(bidAmount);
     if (isNaN(amount) || amount <= 0) { toast.error("Nhập số tiền hợp lệ"); return; }
     const minBid = (auction?.currentPrice || auction?.startingPrice || 0) + (auction?.bidIncrement || 1000);
@@ -138,13 +141,20 @@ export default function AuctionDetailPage() {
             </div>
           </div>
 
-          {/* Form đặt giá */}
+          {/* Form đặt giá — chỉ BUYER */}
           {isActive && (
             <div className="bg-white rounded-2xl border border-nexus-200 shadow-sm p-6">
               <h2 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
                 <Gavel size={18} className="text-nexus-600" /> Đặt giá của bạn
               </h2>
-              {isLoggedIn ? (
+              {/* ADMIN và SELLER không được tham gia đặt giá */}
+              {isLoggedIn && (user?.role === "ADMIN" || user?.role === "SELLER") ? (
+                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  {user.role === "ADMIN"
+                    ? "Quản trị viên không tham gia đấu giá để đảm bảo tính công bằng."
+                    : "Người bán không tham gia đấu giá."}
+                </p>
+              ) : isLoggedIn ? (
                 <div className="flex gap-3">
                   <div className="relative flex-1">
                     <input

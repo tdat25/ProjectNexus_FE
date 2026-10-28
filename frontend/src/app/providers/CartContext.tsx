@@ -16,14 +16,12 @@ export interface GuestCartItem {
   price: number;
   quantity: number;
   imageUrl?: string;
-  stockQuantity?: number;
 }
 
 interface CartContextType {
   guestCart: GuestCartItem[];
   guestCartCount: number;                                    // tổng số lượng sản phẩm
   addToGuestCart: (item: GuestCartItem) => void;             // thêm/cộng dồn vào guest cart
-  updateGuestCartQuantity: (productId: string, quantity: number) => void; // cập nhật số lượng
   removeFromGuestCart: (productId: string) => void;          // xóa khỏi guest cart
   clearGuestCart: () => void;                                // xóa toàn bộ
   mergeGuestCartToBackend: () => Promise<void>;              // dùng sau khi login
@@ -54,43 +52,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Khởi tạo từ localStorage khi load lần đầu
   const [guestCart, setGuestCart] = useState<GuestCartItem[]>(loadGuestCart);
 
-  // Thêm sản phẩm vào guest cart — nếu đã có thì cộng dồn số lượng (giới hạn theo stock)
+  // Thêm sản phẩm vào guest cart — nếu đã có thì cộng dồn số lượng
   const addToGuestCart = useCallback((item: GuestCartItem) => {
     setGuestCart((prev) => {
-      const maxStock = item.stockQuantity ?? 99;
       const existing = prev.find((i) => i.productId === item.productId);
       const next = existing
         ? prev.map((i) =>
             i.productId === item.productId
-              ? {
-                  ...i,
-                  quantity: Math.min(i.quantity + item.quantity, maxStock),
-                  stockQuantity: item.stockQuantity ?? i.stockQuantity,
-                  imageUrl: item.imageUrl || i.imageUrl,
-                }
+              ? { ...i, quantity: i.quantity + item.quantity }
               : i
           )
-        : [...prev, { ...item, quantity: Math.min(item.quantity, maxStock) }];
-      saveGuestCart(next);
-      return next;
-    });
-  }, []);
-
-  // Cập nhật số lượng của 1 sản phẩm trong guest cart
-  const updateGuestCartQuantity = useCallback((productId: string, quantity: number) => {
-    setGuestCart((prev) => {
-      if (quantity <= 0) {
-        const next = prev.filter((i) => i.productId !== productId);
-        saveGuestCart(next);
-        return next;
-      }
-      const next = prev.map((i) => {
-        if (i.productId === productId) {
-          const maxStock = i.stockQuantity ?? 99;
-          return { ...i, quantity: Math.min(quantity, maxStock) };
-        }
-        return i;
-      });
+        : [...prev, item];
       saveGuestCart(next);
       return next;
     });
@@ -127,7 +99,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
           unitPrice: item.price,
           quantity: item.quantity,
           imageUrl: item.imageUrl,
-          stockQuantity: item.stockQuantity,
         })
       )
     );
@@ -145,7 +116,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         guestCart,
         guestCartCount,
         addToGuestCart,
-        updateGuestCartQuantity,
         removeFromGuestCart,
         clearGuestCart,
         mergeGuestCartToBackend,

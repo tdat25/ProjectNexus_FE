@@ -34,8 +34,6 @@ export interface PlaceBidResult {
   newEndTime: string;
 }
 
-import { MOCK_AUCTIONS } from "@shared/mock/mockData";
-
 // Lấy danh sách đấu giá, lọc theo trạng thái
 export const getAuctions = (params?: {
   page?: number;
@@ -47,13 +45,7 @@ export const getAuctions = (params?: {
       "/api/v1/auctions",
       { params }
     )
-    .then((r) => r.data)
-    .catch(() => ({
-      items: MOCK_AUCTIONS,
-      total: MOCK_AUCTIONS.length,
-      page: params?.page ?? 1,
-      pageSize: params?.pageSize ?? 12,
-    }));
+    .then((r) => r.data);
 
 // Xem chi tiết cuộc đấu giá
 export const getAuction = (id: string) =>
@@ -80,3 +72,16 @@ export const getBids = (auctionId: string) =>
   auctionClient
     .get<Bid[]>(`/api/v1/auctions/${auctionId}/bids`)
     .then((r) => r.data);
+
+// Admin: chỉnh sửa thông tin phiên đấu giá (thời gian, mức tăng giá)
+export const updateAuction = (id: string, data: {
+  startTime?: string;
+  endTime?: string;
+  bidIncrement?: number;
+  startingPrice?: number;
+}) =>
+  auctionClient.put<Auction>(`/api/v1/auctions/${id}`, data).then((r) => r.data);
+
+// Admin: hủy phiên đấu giá (Scheduled/Active → Ended/Cancelled)
+export const cancelAuction = (id: string) =>
+  auctionClient.post(`/api/v1/auctions/${id}/cancel`).then((r) => r.data);

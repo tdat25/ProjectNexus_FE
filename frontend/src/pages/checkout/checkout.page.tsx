@@ -1,15 +1,24 @@
-import { useState, useEffect, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCart, checkout, type DeliveryType, type CartItem } from "@shared/api/commerce";
-import { useNavigate, useLocation } from "react-router-dom";
-import { getUserAddresses, type UserAddress } from "@shared/api/auth";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getCart, checkout, type DeliveryType } from "@shared/api/commerce";
+import { useNavigate, Link } from "react-router-dom";
 import LoadingSpinner from "@shared/ui/LoadingSpinner";
 import toast from "react-hot-toast";
 import { useToast } from "@app/providers/ToastContext";
 import {
   MapPin, CreditCard, Package, Truck, ChevronDown,
-  Zap, Globe, User, Phone, ShoppingBag, Bookmark,
+  Zap, Globe, User, Phone, ShoppingBag, Tag, X, CheckCircle, ChevronRight,
 } from "lucide-react";
+
+// ── Mock voucher database (seller-issued) ─────────────────────────────────
+const MOCK_VOUCHERS: Record<string, { discount: number; type: "percent"|"flat"; minOrder: number; desc: string; seller?: string }> = {
+  "NEXUS10":   { discount: 10, type: "percent", minOrder: 0,          desc: "Giảm 10% toàn sàn",               seller: "Nexus" },
+  "SALE20":    { discount: 20, type: "percent", minOrder: 200_000,    desc: "Giảm 20% đơn từ 200k",             seller: "Nexus" },
+  "NEWUSER30": { discount: 30, type: "percent", minOrder: 0,          desc: "Khách mới giảm 30%",               seller: "Nexus" },
+  "TECH15":    { discount: 15, type: "percent", minOrder: 1_000_000,  desc: "Giảm 15% cho đơn điện tử từ 1tr", seller: "TechDealsPro" },
+  "FREESHIP":  { discount: 30_000, type: "flat", minOrder: 0,         desc: "Giảm 30.000đ phí ship",            seller: "Nexus" },
+  "SUMMER50":  { discount: 50, type: "percent", minOrder: 500_000,    desc: "Sale hè giảm 50% (tối đa 300k)",   seller: "Nexus" },
+};
 
 const fmtVND = (n: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n);
@@ -83,18 +92,12 @@ const DELIVERY_TYPES: {
 // ═══════════════════════════════════════════════════════════════════════════
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const queryClient = useQueryClient();
   const { show } = useToast();
-
-  // Nhận các sản phẩm đã được chọn từ trang Cart (hoặc "Mua ngay" từ ProductDetail)
-  const selectedFromState = (location.state as any)?.selectedItems as CartItem[] | undefined;
 
   const [recipientName, setRecipientName] = useState("");
   const [phone, setPhone]                 = useState("");
   const [streetAddress, setStreetAddress] = useState("");
 
-  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
   const [provinces, setProvinces] = useState<VnProvince[]>([]);
   const [districts, setDistricts] = useState<VnDistrict[]>([]);
   const [wards, setWards]         = useState<VnWard[]>([]);
@@ -106,6 +109,9 @@ export default function CheckoutPage() {
   const [deliveryType, setDeliveryType]   = useState<DeliveryType>("Standard");
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "VNPAY">("COD");
   const [placing, setPlacing]             = useState(false);
+  const [voucherCode, setVoucherCode]     = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState<typeof MOCK_VOUCHERS[string] & { code: string } | null>(null);
+  const [voucherErr, setVoucherErr]       = useState("");
 
   const provinceName = provinces.find(p => String(p.code) === selProvince)?.name ?? "";
   const districtName = districts.find(d => String(d.code) === selDistrict)?.name ?? "";
@@ -114,30 +120,32 @@ export default function CheckoutPage() {
   const shippingFee = FLAT_FEE[deliveryType];
   const { data: cart, isLoading } = useQuery({ queryKey: ["cart"], queryFn: getCart });
 
-  const [savedArea, setSavedArea] = useState({ province: "TP. Hồ Chí Minh", district: "Thành phố Thủ Đức", ward: "Phường Long Thạnh Mỹ" });
-
-  // Tải danh sách tỉnh/thành phố và sổ địa chỉ đã lưu
-  useEffect(() => {
-    fetchProvinces().then(setProvinces).catch(() => {});
-    const addrs = getUserAddresses();
-    setSavedAddresses(addrs);
-    const def = addrs.find(a => a.isDefault) || addrs[0];
-    if (def) {
-      setRecipientName(def.recipientName);
-      setPhone(def.phoneNumber);
-      setStreetAddress(def.streetAddress);
-      setSavedArea({ province: def.province, district: def.district, ward: def.ward });
+  const applyVoucher = () => {
+    setVoucherErr("");
+    const code = voucherCode.trim().toUpperCase();
+    const v = MOCK_VOUCHERS[code];
+    if (!v) { setVoucherErr("Mã voucher không tồn tại hoặc đã hết hạn"); return; }
+    const subtotal = cart?.totalAmount ?? 0;
+    if (v.minOrder > 0 && subtotal < v.minOrder) {
+      setVoucherErr(`Đơn hàng tối thiểu ${new Intl.NumberFormat("vi-VN",{style:"currency",currency:"VND"}).format(v.minOrder)} để dùng voucher này`);
+      return;
     }
-  }, []);
-
-  // Chọn nhanh địa chỉ từ sổ địa chỉ
-  const handleSelectSavedAddress = (addr: UserAddress) => {
-    setRecipientName(addr.recipientName);
-    setPhone(addr.phoneNumber);
-    setStreetAddress(addr.streetAddress);
-    setSavedArea({ province: addr.province, district: addr.district, ward: addr.ward });
-    toast.success(`Đã áp dụng địa chỉ: ${addr.recipientName}`);
+    setAppliedVoucher({ ...v, code });
+    toast.success(`Áp dụng voucher ${code} thành công!`);
   };
+
+  const removeVoucher = () => { setAppliedVoucher(null); setVoucherCode(""); setVoucherErr(""); };
+
+  const calcDiscount = (subtotal: number) => {
+    if (!appliedVoucher) return 0;
+    if (appliedVoucher.type === "percent") {
+      const d = Math.round(subtotal * appliedVoucher.discount / 100);
+      return Math.min(d, 300_000);
+    }
+    return appliedVoucher.discount;
+  };
+
+  useEffect(() => { fetchProvinces().then(setProvinces).catch(() => {}); }, []);
 
   const handleProvinceChange = async (val: string) => {
     setSelProvince(val); setSelDistrict(""); setSelWard("");
@@ -152,83 +160,40 @@ export default function CheckoutPage() {
     setWards(await fetchWards(Number(val)).catch(() => []));
   };
 
-  // Xác định danh sách sản phẩm cần thanh toán
-  const checkoutItems: CartItem[] = useMemo(() => {
-    if (selectedFromState && selectedFromState.length > 0) {
-      return selectedFromState;
-    }
-    return cart?.items ?? [];
-  }, [selectedFromState, cart?.items]);
-
-  const itemsSubtotal = useMemo(() => {
-    return checkoutItems.reduce((s, i) => s + (i.subtotal || i.unitPrice * i.quantity), 0);
-  }, [checkoutItems]);
-
-  const totalWithShipping = itemsSubtotal + shippingFee;
-
   if (isLoading) return <LoadingSpinner />;
-  if (!checkoutItems.length) {
-    navigate("/cart");
-    return null;
-  }
+  if (!cart?.items?.length) { navigate("/cart"); return null; }
+
+  const discount = calcDiscount(cart.totalAmount);
+  const totalWithShipping = cart.totalAmount + shippingFee - discount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!recipientName.trim() || !phone.trim() || !streetAddress.trim()) {
-      toast.error("Vui lòng nhập đầy đủ họ tên, SĐT và địa chỉ");
-      return;
+      toast.error("Vui lòng nhập đầy đủ họ tên, SĐT và địa chỉ"); return;
     }
-
-    const cleanPhone = phone.replace(/[\s.-]/g, "");
-    const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/;
-    if (!phoneRegex.test(cleanPhone)) {
-      toast.error("Số điện thoại không hợp lệ (phải bắt đầu bằng 03, 05, 07, 08, 09 và gồm 10 chữ số)!");
-      return;
+    if (!selProvince || !selDistrict || !selWard) {
+      toast.error("Vui lòng chọn đầy đủ Tỉnh / Quận / Phường"); return;
     }
-
     const opt = DELIVERY_TYPES.find(d => d.id === deliveryType)!;
     setPlacing(true);
     try {
-      const finalProvince = provinceName || savedArea.province || "TP. Hồ Chí Minh";
-      const finalDistrict = districtName || savedArea.district || "Thành phố Thủ Đức";
-      const finalWard     = wardName || savedArea.ward || "Phường Long Thạnh Mỹ";
-
       const result = await checkout({
-        recipientName,
-        phone: cleanPhone,
-        address: streetAddress,
-        province: finalProvince,
-        district: finalDistrict,
-        ward: finalWard,
-        toDistrictId: 0,
-        toWardCode: selWard || "0",
-        shippingFee,
-        paymentMethod,
-        deliveryType,
-        serviceTypeId: opt.serviceTypeId,
+        recipientName, phone, address: streetAddress,
+        province: provinceName, district: districtName, ward: wardName,
+        toDistrictId: 0, toWardCode: selWard,
+        shippingFee, paymentMethod,
+        deliveryType, serviceTypeId: opt.serviceTypeId,
         isInternational: deliveryType === "PreOrder",
-        selectedItems: checkoutItems,
       });
-
-      // Cập nhật lại giỏ hàng và đơn hàng sau khi đặt thành công
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-
       if (result.paymentUrl && paymentMethod !== "COD") {
         navigate(`/payment?orderId=${result.orderId}`);
       } else {
-        show(
-          `Đơn hàng #${result.orderId} đã được đặt thành công! ${result.deliveryTypeLabel ?? opt.label}.`,
-          "success",
-          "Đặt hàng thành công 🎉"
-        );
+        show(`Đơn hàng đặt thành công! ${result.deliveryTypeLabel ?? opt.label}.`, "success", "Đặt hàng thành công 🎉");
         navigate("/orders");
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? "Đặt hàng thất bại, thử lại nhé");
-    } finally {
-      setPlacing(false);
-    }
+    } finally { setPlacing(false); }
   };
 
   return (
@@ -240,67 +205,31 @@ export default function CheckoutPage() {
       <form onSubmit={handleSubmit}>
         <div className="grid lg:grid-cols-[1fr_380px] gap-6">
 
-          {/* ─── LEFT: Địa chỉ & Phương thức ─────────────────────────── */}
+          {/* ─── LEFT ─────────────────────────────────────────────────── */}
           <div className="flex flex-col gap-5">
 
-            {/* Địa chỉ giao hàng */}
+            {/* Địa chỉ */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                  <MapPin size={18} className="text-nexus-600" /> Địa chỉ giao hàng
-                </h2>
-                {savedAddresses.length > 0 && (
-                  <span className="text-xs text-nexus-600 font-medium">Sổ địa chỉ của bạn</span>
-                )}
-              </div>
-
-              {/* Gợi ý chọn nhanh từ sổ địa chỉ */}
-              {savedAddresses.length > 0 && (
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {savedAddresses.map((addr) => (
-                    <button
-                      key={addr.id}
-                      type="button"
-                      onClick={() => handleSelectSavedAddress(addr)}
-                      className={`text-xs px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition ${
-                        streetAddress === addr.streetAddress
-                          ? "bg-nexus-50 border-nexus-400 text-nexus-700 font-bold"
-                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <Bookmark size={12} />
-                      <span>{addr.recipientName} ({addr.district})</span>
-                      {addr.isDefault && (
-                        <span className="text-[10px] bg-nexus-200 text-nexus-800 px-1 rounded">Mặc định</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <h2 className="font-semibold text-gray-800 mb-5 flex items-center gap-2">
+                <MapPin size={18} className="text-nexus-600" /> Địa chỉ giao hàng
+              </h2>
 
               <div className="grid sm:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
-                    <User size={12} /> Họ và tên người nhận *
+                    <User size={12} /> Họ và tên *
                   </label>
-                  <input
-                    value={recipientName}
-                    onChange={e => setRecipientName(e.target.value)}
+                  <input value={recipientName} onChange={e => setRecipientName(e.target.value)}
                     placeholder="Nguyễn Văn A"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nexus-500 transition"
-                  />
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nexus-500 transition" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
                     <Phone size={12} /> Số điện thoại *
                   </label>
-                  <input
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    placeholder="0901 234 567"
-                    type="tel"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nexus-500 transition"
-                  />
+                  <input value={phone} onChange={e => setPhone(e.target.value)}
+                    placeholder="0901 234 567" type="tel"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nexus-500 transition" />
                 </div>
               </div>
 
@@ -325,15 +254,13 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="mb-2">
+              <div className="mb-5">
                 <label className="text-xs font-medium text-gray-500 mb-1.5 block">Số nhà, tên đường *</label>
-                <input
-                  value={streetAddress}
-                  onChange={e => setStreetAddress(e.target.value)}
+                <input value={streetAddress} onChange={e => setStreetAddress(e.target.value)}
                   placeholder="Ví dụ: 50 Lê Văn Việt, Phường Hiệp Phú"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nexus-500 transition"
-                />
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nexus-500 transition" />
               </div>
+
             </div>
 
             {/* Vận chuyển */}
@@ -351,9 +278,7 @@ export default function CheckoutPage() {
                         ${selected ? "border-nexus-500 bg-nexus-50" : "border-gray-100 hover:border-gray-200 bg-white"}`}
                     >
                       <input
-                        type="radio"
-                        name="delivery"
-                        value={opt.id}
+                        type="radio" name="delivery" value={opt.id}
                         checked={selected}
                         onChange={() => setDeliveryType(opt.id)}
                         className="accent-nexus-600 w-4 h-4"
@@ -393,15 +318,11 @@ export default function CheckoutPage() {
                       ${paymentMethod === opt.id ? "border-nexus-500 bg-nexus-50" : "border-gray-100 hover:border-gray-200"}
                       ${"disabled" in opt && opt.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
                   >
-                    <input
-                      type="radio"
-                      name="payment"
-                      value={opt.id}
+                    <input type="radio" name="payment" value={opt.id}
                       checked={paymentMethod === opt.id}
                       disabled={"disabled" in opt && opt.disabled}
                       onChange={() => !("disabled" in opt && opt.disabled) && setPaymentMethod(opt.id)}
-                      className="accent-nexus-600 w-4 h-4"
-                    />
+                      className="accent-nexus-600 w-4 h-4" />
                     <span className="text-xl">{opt.icon}</span>
                     <div>
                       <div className="text-sm font-semibold text-gray-800">{opt.label}</div>
@@ -413,17 +334,17 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* ─── RIGHT: Tóm tắt đơn hàng ─────────────────────────────── */}
+          {/* ─── RIGHT ────────────────────────────────────────────────── */}
           <div className="flex flex-col gap-5">
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm sticky top-20">
               <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <Package size={18} className="text-nexus-600" /> Sản phẩm thanh toán ({checkoutItems.length})
+                <Package size={18} className="text-nexus-600" /> Sản phẩm ({cart.items.length})
               </h2>
 
               <div className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-1">
-                {checkoutItems.map(item => (
+                {cart.items.map(item => (
                   <div key={item.productId} className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="w-14 h-14 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden shrink-0">
                       {item.imageUrl
                         ? <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-cover"
                                onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
@@ -431,11 +352,9 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-800 font-medium truncate">{item.productName}</p>
-                      <p className="text-xs text-gray-400">Số lượng: {item.quantity}</p>
+                      <p className="text-xs text-gray-400">× {item.quantity}</p>
                     </div>
-                    <span className="text-sm font-semibold text-gray-800 shrink-0">
-                      {fmtVND(item.subtotal || item.unitPrice * item.quantity)}
-                    </span>
+                    <span className="text-sm font-semibold text-gray-800 shrink-0">{fmtVND(item.subtotal)}</span>
                   </div>
                 ))}
               </div>
@@ -443,21 +362,64 @@ export default function CheckoutPage() {
               {/* Kho info */}
               <div className="mt-4 bg-blue-50 rounded-xl px-3 py-2 flex items-start gap-2">
                 <MapPin size={13} className="text-blue-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-blue-700">Nexus Marketplace — Kho Tổng TP.HCM</p>
+                <p className="text-xs text-blue-700">Nexus Marketplace</p>
               </div>
 
-              <div className="border-t border-gray-100 mt-4 pt-4 flex flex-col gap-2.5">
+              {/* ── Voucher input ─────────────────────────────────── */}
+              <div className="border-t border-gray-100 mt-4 pt-4">
+                <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5"><Tag size={12} className="text-nexus-500"/> Mã giảm giá</p>
+                {appliedVoucher ? (
+                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={14} className="text-emerald-500"/>
+                      <div>
+                        <p className="text-xs font-bold text-emerald-700">{appliedVoucher.code}</p>
+                        <p className="text-[10px] text-emerald-600">{appliedVoucher.desc}</p>
+                      </div>
+                    </div>
+                    <button onClick={removeVoucher} className="text-gray-400 hover:text-red-400 transition-colors"><X size={13}/></button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex gap-2">
+                      <input value={voucherCode} onChange={e => { setVoucherCode(e.target.value.toUpperCase()); setVoucherErr(""); }}
+                        onKeyDown={e => e.key === "Enter" && applyVoucher()}
+                        placeholder="Nhập mã voucher..." maxLength={20}
+                        className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-nexus-400 uppercase tracking-wider"/>
+                      <button onClick={applyVoucher} disabled={!voucherCode.trim()}
+                        className="bg-nexus-500 hover:bg-nexus-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-bold px-4 rounded-xl transition-colors shrink-0">
+                        Áp dụng
+                      </button>
+                    </div>
+                    {voucherErr && <p className="text-xs text-red-500 mt-1.5">{voucherErr}</p>}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {["NEXUS10","SALE20","TECH15"].map(code => (
+                        <button key={code} onClick={() => { setVoucherCode(code); setVoucherErr(""); }}
+                          className="text-[10px] bg-indigo-50 text-nexus-600 border border-indigo-100 px-2 py-0.5 rounded-full hover:bg-indigo-100 transition-colors font-mono">
+                          {code}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 flex flex-col gap-2.5">
                 <div className="flex justify-between text-sm text-gray-600">
-                  <span>Tạm tính hàng chọn</span>
-                  <span>{fmtVND(itemsSubtotal)}</span>
+                  <span>Tạm tính</span>
+                  <span>{fmtVND(cart.totalAmount)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-600">
-                  <span className="flex items-center gap-1">
-                    <Truck size={13} />
-                    {DELIVERY_TYPES.find(d => d.id === deliveryType)?.label}
-                  </span>
+                  <span className="flex items-center gap-1"><Truck size={13} />
+                    {DELIVERY_TYPES.find(d => d.id === deliveryType)?.label}</span>
                   <span>{shippingFee === 0 ? "Thoả thuận" : fmtVND(shippingFee)}</span>
                 </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-sm text-emerald-600 font-semibold">
+                    <span className="flex items-center gap-1"><Tag size={12}/> Voucher {appliedVoucher?.code}</span>
+                    <span>-{fmtVND(discount)}</span>
+                  </div>
+                )}
                 {selWard && (
                   <div className="text-xs text-gray-400 bg-gray-50 rounded-lg p-2">
                     📦 Dự kiến:{" "}
@@ -471,32 +433,23 @@ export default function CheckoutPage() {
                 )}
                 <div className="flex justify-between font-bold text-nexus-700 text-lg pt-2 border-t border-gray-100">
                   <span>Tổng thanh toán</span>
-                  <span>{fmtVND(totalWithShipping)}</span>
+                  <span>{fmtVND(Math.max(0, totalWithShipping))}</span>
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={placing}
+              <button type="submit" disabled={placing}
                 className="mt-5 w-full bg-nexus-600 hover:bg-nexus-700 disabled:bg-nexus-300
                            text-white font-bold py-4 rounded-2xl transition-colors text-base
-                           shadow-lg shadow-nexus-200 flex items-center justify-center gap-2"
-              >
+                           shadow-lg shadow-nexus-200 flex items-center justify-center gap-2">
                 {placing ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Đang xử lý đơn hàng...
-                  </>
+                  <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />Đang đặt hàng...</>
                 ) : (
-                  <>
-                    <ShoppingBag size={18} />
-                    Xác nhận đặt hàng — {fmtVND(totalWithShipping)}
-                  </>
+                  <><ShoppingBag size={18} />Đặt hàng — {fmtVND(Math.max(0, totalWithShipping))}</>
                 )}
               </button>
               <p className="text-xs text-gray-400 text-center mt-3">
                 Bằng cách đặt hàng, bạn đồng ý với{" "}
-                <span className="text-nexus-600 cursor-pointer hover:underline">Điều khoản dịch vụ</span> của Nexus
+                <Link to="/policy" className="text-nexus-600 hover:underline">Chính sách mua hàng</Link> của Nexus
               </p>
             </div>
           </div>

@@ -26,10 +26,10 @@ export default function ProductCard({ product, onAddToCart }: Props) {
   const isOutOfStock = product.stockQuantity === 0;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 ease-out flex flex-col group relative">
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col group relative">
       {/* Discount badge */}
       {discountPct > 0 && (
-        <div className="absolute top-2 left-2 z-10 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+        <div className="absolute top-2 left-2 z-10 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
           -{discountPct}%
         </div>
       )}
@@ -41,7 +41,7 @@ export default function ProductCard({ product, onAddToCart }: Props) {
             <img
               src={product.imageUrl}
               alt={product.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ease-out"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               onError={(e) => {
                 const t = e.target as HTMLImageElement;
                 t.style.display = "none";
@@ -55,8 +55,8 @@ export default function ProductCard({ product, onAddToCart }: Props) {
 
         {/* Add to cart — hover overlay */}
         {onAddToCart && !isOutOfStock && (
-          <div className="absolute bottom-0 left-0 right-0 bg-nexus-700/95 text-white text-xs font-semibold py-2 text-center
-            translate-y-full group-hover:translate-y-0 active:bg-nexus-800 transition-all duration-200 ease-out flex items-center justify-center gap-1.5 shadow-md">
+          <div className="absolute bottom-0 left-0 right-0 bg-nexus-700/90 text-white text-xs font-semibold py-2 text-center
+            translate-y-full group-hover:translate-y-0 transition-transform duration-200 flex items-center justify-center gap-1.5">
             <ShoppingCart size={13} /> Thêm vào giỏ
           </div>
         )}
