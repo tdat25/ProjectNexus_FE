@@ -99,6 +99,7 @@ export const createProduct = (data: {
   price: number;
   stockQuantity: number;
   categoryId: string;
+  imageUrl?: string;
 }) => catalogClient.post<Product>("/api/v1/products", data).then((r) => r.data);
 
 // Sửa sản phẩm
